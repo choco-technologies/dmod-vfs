@@ -18,7 +18,7 @@ if(DMOD_STANDALONE)
     FetchContent_Declare(
         dmod
         GIT_REPOSITORY git@github.com:choco-technologies/dmod.git
-        GIT_TAG develop  
+        GIT_TAG develop
     )
     
     FetchContent_MakeAvailable(dmod)

@@ -16,8 +16,7 @@ endif
 #
 DMOD_LIB_NAME=libdmod_vfs.a
 DMOD_SOURCES=src/dmod_vfs.c
-DMOD_INC_DIRS = /home/pkubiak/Projects/choco-technologies/public/dmod-vfs\
-		/home/pkubiak/Projects/choco-technologies/public/dmod-vfs/inc
+DMOD_INC_DIRS = inc
 DMOD_LIBS = dmod
 DMOD_GEN_HEADERS_IN = 
 DMOD_DEFINITIONS = 
