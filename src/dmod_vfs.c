@@ -37,14 +37,15 @@ extern void* Dmod_GetDifFunction(Dmod_Context_t* Context, const char* DifSignatu
 
 // FSI DIF signature declarations (from dmod-fsi)
 // These would normally be provided by including fsi.h
-extern const char* const dmod_fsi_fopen_sig;
-extern const char* const dmod_fsi_fclose_sig;
-extern const char* const dmod_fsi_fread_sig;
-extern const char* const dmod_fsi_fwrite_sig;
-extern const char* const dmod_fsi_lseek_sig;
-extern const char* const dmod_fsi_tell_sig;
-extern const char* const dmod_fsi_size_sig;
-extern const char* const dmod_fsi_stat_sig;
+// Declared as weak so they can be overridden by actual FSI module
+extern const char* const dmod_fsi_fopen_sig __attribute__((weak));
+extern const char* const dmod_fsi_fclose_sig __attribute__((weak));
+extern const char* const dmod_fsi_fread_sig __attribute__((weak));
+extern const char* const dmod_fsi_fwrite_sig __attribute__((weak));
+extern const char* const dmod_fsi_lseek_sig __attribute__((weak));
+extern const char* const dmod_fsi_tell_sig __attribute__((weak));
+extern const char* const dmod_fsi_size_sig __attribute__((weak));
+extern const char* const dmod_fsi_stat_sig __attribute__((weak));
 
 // Define logging macros
 #ifndef NDEBUG
