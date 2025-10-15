@@ -32,6 +32,19 @@ typedef struct Dmod_Context_s Dmod_Context_t;
 extern void* Dmod_Malloc(size_t Size);
 extern void Dmod_Free(void* Ptr);
 extern int Dmod_Printf(const char* Format, ...);
+extern Dmod_Context_t* Dmod_GetNextDifModule(const char* DifSignature, Dmod_Context_t* Previous);
+extern void* Dmod_GetDifFunction(Dmod_Context_t* Context, const char* DifSignature);
+
+// FSI DIF signature declarations (from dmod-fsi)
+// These would normally be provided by including fsi.h
+extern const char* const dmod_fsi_fopen_sig;
+extern const char* const dmod_fsi_fclose_sig;
+extern const char* const dmod_fsi_fread_sig;
+extern const char* const dmod_fsi_fwrite_sig;
+extern const char* const dmod_fsi_lseek_sig;
+extern const char* const dmod_fsi_tell_sig;
+extern const char* const dmod_fsi_size_sig;
+extern const char* const dmod_fsi_stat_sig;
 
 // Define logging macros
 #ifndef NDEBUG
@@ -258,13 +271,27 @@ bool DmodVfs_Mount(const char* mountPoint, const char* fsName)
     }
 
     // Find the file system module using DIF interface
-    // We need to search for modules implementing the FSI interface
+    // Search through all modules implementing the FSI interface
     Dmod_Context_t* fsContext = NULL;
     
-    // Try to find the module by name
-    // In a real implementation, we would iterate through DIF modules
-    // For now, we'll use a simplified approach
-    DMOD_LOG_INFO("Mounting %s at %s\n", fsName, mountPoint);
+    // NOTE: In a full implementation, we would search for a specific module by name
+    // For now, we use the first FSI module found (or could match by name if needed)
+    // The actual module discovery would be done via Dmod_GetNextDifModule with FSI signatures
+    DMOD_LOG_INFO("Attempting to mount %s at %s\n", fsName, mountPoint);
+
+    // Try to find an FSI module
+    // We use a weak external symbol that will be NULL if not linked
+    if (dmod_fsi_fopen_sig) {
+        fsContext = Dmod_GetNextDifModule(dmod_fsi_fopen_sig, NULL);
+        
+        if (fsContext) {
+            DMOD_LOG_INFO("Found FSI module for mounting\n");
+        } else {
+            DMOD_LOG_ERROR("No FSI module found for mounting\n");
+        }
+    } else {
+        DMOD_LOG_ERROR("FSI interface not available (fsi.h not linked)\n");
+    }
 
     DmodVfs_MountPoint_t* mp = &s_mountPoints[freeSlot];
     strncpy(mp->mountPoint, mountPoint, DMOD_VFS_MAX_PATH_LENGTH - 1);
@@ -274,9 +301,39 @@ bool DmodVfs_Mount(const char* mountPoint, const char* fsName)
     mp->fsContext = fsContext;
     mp->active = true;
 
-    // TODO: Initialize function pointers from DIF
-    // This would require using Dmod_GetNextDifModule and Dmod_GetDifFunction
-    // to get the actual function pointers from the loaded FSI module
+    // Get function pointers from DIF if module is available
+    if (fsContext && dmod_fsi_fopen_sig) {
+        mp->ops.fopen = (void* (*)(void**, const char*, int, int))
+            Dmod_GetDifFunction(fsContext, dmod_fsi_fopen_sig);
+        mp->ops.fclose = (int (*)(void*))
+            Dmod_GetDifFunction(fsContext, dmod_fsi_fclose_sig);
+        mp->ops.fread = (int (*)(void*, void*, size_t, size_t*))
+            Dmod_GetDifFunction(fsContext, dmod_fsi_fread_sig);
+        mp->ops.fwrite = (int (*)(void*, const void*, size_t, size_t*))
+            Dmod_GetDifFunction(fsContext, dmod_fsi_fwrite_sig);
+        mp->ops.lseek = (long (*)(void*, long, int))
+            Dmod_GetDifFunction(fsContext, dmod_fsi_lseek_sig);
+        mp->ops.tell = (long (*)(void*))
+            Dmod_GetDifFunction(fsContext, dmod_fsi_tell_sig);
+        mp->ops.size = (long (*)(void*))
+            Dmod_GetDifFunction(fsContext, dmod_fsi_size_sig);
+        mp->ops.stat = (int (*)(const char*, void*))
+            Dmod_GetDifFunction(fsContext, dmod_fsi_stat_sig);
+            
+        DMOD_LOG_INFO("Initialized function pointers from FSI module\n");
+    } else {
+        // No module available, operations will fail
+        mp->ops.fopen = NULL;
+        mp->ops.fclose = NULL;
+        mp->ops.fread = NULL;
+        mp->ops.fwrite = NULL;
+        mp->ops.lseek = NULL;
+        mp->ops.tell = NULL;
+        mp->ops.size = NULL;
+        mp->ops.stat = NULL;
+        
+        DMOD_LOG_ERROR("No FSI module available - operations will not work\n");
+    }
 
     DMOD_LOG_INFO("Mounted %s at %s\n", fsName, mountPoint);
     return true;
