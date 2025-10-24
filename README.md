@@ -310,9 +310,9 @@ dmod_fsi_dif_api_declaration(1.0, RamFS, int, _fopen,
 
 The VFS uses DMOD's DIF (DMOD Interface) system to dynamically discover and use file system modules:
 
-1. **Module Discovery**: When mounting, the VFS searches for modules implementing the FSI DIF using the signature `dmod_fsi_fopen_sig`.
+1. **Module Discovery**: When mounting, the VFS searches for modules implementing the FSI DIF using the signature `dmod_fsi_fopen_sig`. It iterates through all FSI modules using `Dmod_GetNextDifModule()` and finds the one whose name matches the requested module name.
 
-2. **Function Pointer Resolution**: For each found module, the VFS retrieves function pointers for all supported operations using `Dmod_GetDifFunction()`.
+2. **Function Pointer Resolution**: Once the matching module is found, the VFS retrieves function pointers for all supported operations using `Dmod_GetDifFunction()`.
 
 3. **Path Routing**: When a file operation is requested, the VFS:
    - Finds the mount point that matches the file path

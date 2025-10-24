@@ -34,6 +34,7 @@ extern void Dmod_Free(void* Ptr);
 extern int Dmod_Printf(const char* Format, ...);
 extern Dmod_Context_t* Dmod_GetNextDifModule(const char* DifSignature, Dmod_Context_t* Previous);
 extern void* Dmod_GetDifFunction(Dmod_Context_t* Context, const char* DifSignature);
+extern const char* Dmod_Context_GetModuleName(Dmod_Context_t* Context);
 
 // FSI DIF signature declarations (from dmod-fsi)
 // These would normally be provided by including fsi.h
@@ -272,23 +273,27 @@ bool DmodVfs_Mount(const char* mountPoint, const char* fsName)
     }
 
     // Find the file system module using DIF interface
-    // Search through all modules implementing the FSI interface
+    // Search through all modules implementing the FSI interface for one matching fsName
     Dmod_Context_t* fsContext = NULL;
     
-    // NOTE: In a full implementation, we would search for a specific module by name
-    // For now, we use the first FSI module found (or could match by name if needed)
-    // The actual module discovery would be done via Dmod_GetNextDifModule with FSI signatures
     DMOD_LOG_INFO("Attempting to mount %s at %s\n", fsName, mountPoint);
 
-    // Try to find an FSI module
+    // Try to find an FSI module with matching name
     // We use a weak external symbol that will be NULL if not linked
     if (dmod_fsi_fopen_sig) {
-        fsContext = Dmod_GetNextDifModule(dmod_fsi_fopen_sig, NULL);
+        // Iterate through all FSI modules to find one matching the requested name
+        Dmod_Context_t* currentContext = NULL;
+        while ((currentContext = Dmod_GetNextDifModule(dmod_fsi_fopen_sig, currentContext)) != NULL) {
+            const char* moduleName = Dmod_Context_GetModuleName(currentContext);
+            if (moduleName && strcmp(moduleName, fsName) == 0) {
+                fsContext = currentContext;
+                DMOD_LOG_INFO("Found FSI module '%s' for mounting\n", moduleName);
+                break;
+            }
+        }
         
-        if (fsContext) {
-            DMOD_LOG_INFO("Found FSI module for mounting\n");
-        } else {
-            DMOD_LOG_ERROR("No FSI module found for mounting\n");
+        if (!fsContext) {
+            DMOD_LOG_ERROR("No FSI module named '%s' found for mounting\n", fsName);
         }
     } else {
         DMOD_LOG_ERROR("FSI interface not available (fsi.h not linked)\n");

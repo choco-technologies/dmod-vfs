@@ -113,11 +113,12 @@ Public API provides:
 ```
 1. Application calls DmodVfs_Mount("/ram", "ramfs")
 2. VFS finds free mount point slot
-3. VFS calls Dmod_GetNextDifModule(dmod_fsi_fopen_sig, NULL)
-4. DMOD searches loaded modules for FSI implementations
-5. VFS gets function pointers via Dmod_GetDifFunction()
-6. VFS stores mount point with function pointers
-7. Mount complete
+3. VFS iterates through FSI modules using Dmod_GetNextDifModule(dmod_fsi_fopen_sig, ...)
+4. For each module, VFS calls Dmod_Context_GetModuleName() to get module name
+5. VFS compares module name with requested name ("ramfs")
+6. When match is found, VFS gets function pointers via Dmod_GetDifFunction()
+7. VFS stores mount point with function pointers
+8. Mount complete
 ```
 
 ### File Open Operation
