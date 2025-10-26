@@ -1,47 +1,65 @@
-cmake_minimum_required(VERSION 3.14)
+# =====================================================================
+#               DMOD Virtual File System
+# =====================================================================
+cmake_minimum_required(VERSION 3.10)
 
-project(dmod_vfs
-    VERSION 0.1.0
-    DESCRIPTION "DMOD VFS module"
-    LANGUAGES C
+# ======================================================================
+#               DMOD VFS
+# ======================================================================
+project(dmod-vfs 
+    VERSION 1.0
+    DESCRIPTION "DMOD Virtual File System"
+    LANGUAGES C CXX)
+
+# ======================================================================
+#               Fetch DMOD repository
+# ======================================================================
+include(FetchContent)
+FetchContent_Declare(
+    dmod
+    GIT_REPOSITORY https://github.com/choco-technologies/dmod.git
+    GIT_TAG        develop
 )
 
-include(FetchContent)
+# ======================================================================
+#               DMOD Configuration
+# ======================================================================
+set(DMOD_MODE "DMOD_SYSTEM" CACHE STRING "DMOD build mode")
+set(DMOD_BUILD_TESTS OFF CACHE BOOL "Build tests")
+set(DMOD_BUILD_EXAMPLES OFF CACHE BOOL "Build examples")
+set(DMOD_BUILD_TOOLS OFF CACHE BOOL "Build tools")
+set(DMOD_BUILD_TEMPLATES OFF CACHE BOOL "Build templates")
 
-option(DMOD_STANDALONE "Fetch dmod dependency automatically" OFF)
+FetchContent_MakeAvailable(dmod)
 
-if(DMOD_STANDALONE)
-    set(DMOD_BUILD_EXAMPLES OFF CACHE BOOL "Disable dmod examples")
-    set(DMOD_BUILD_TESTS OFF CACHE BOOL "Disable dmod tests")
-    set(DMOD_BUILD_TOOLS OFF CACHE BOOL "Disable dmod tools")
-    
-    FetchContent_Declare(
-        dmod
-        GIT_REPOSITORY git@github.com:choco-technologies/dmod.git
-        GIT_TAG develop
-    )
-    
-    FetchContent_MakeAvailable(dmod)
-    
-    set(DMOD_DIR ${dmod_SOURCE_DIR})
-    set(DMOD_BUILD_DIR ${dmod_BINARY_DIR})
-endif()
+# ======================================================================
+#               Fetch DMOD File System Interface
+# ======================================================================
+FetchContent_Declare(
+    dmod-fsi
+    GIT_REPOSITORY
+    https://github.com/choco-technologies/dmod-fsi.git
+    GIT_TAG        master
+)
 
-set(MODULE_NAME dmod_vfs)
-set(DMOD_MODE "DMOD_SYSTEM")
-add_library(${MODULE_NAME} STATIC
+# ======================================================================
+#               DMOD File System Interface Configuration
+# ======================================================================
+set(DMOD_DIR ${dmod_SOURCE_DIR})
+FetchContent_MakeAvailable(dmod-fsi)
+
+# ======================================================================
+#               DMOD VFS Library definition
+# ======================================================================
+add_library(dmod-vfs STATIC
     src/dmod_vfs.c
 )
 
-target_include_directories(${MODULE_NAME} 
-    PUBLIC 
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/inc
-)   
+target_include_directories(dmod-vfs PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
+)
 
-target_link_libraries(${MODULE_NAME} 
-    PUBLIC    
-        dmod
-    )
-
-create_library_makefile(${MODULE_NAME})
+target_link_libraries(dmod-vfs PUBLIC
+    dmod
+    dmod-fsi
+)
