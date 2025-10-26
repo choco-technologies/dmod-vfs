@@ -5,10 +5,6 @@
 #include "dmfsi.h"
 
 typedef struct {
-
-} dmvfs_fs_t;
-
-typedef struct {
     uint32_t size;
     uint32_t attr;
     uint32_t ctime;
@@ -23,10 +19,10 @@ typedef struct {
     uint32_t time;
 } dmod_fsi_dir_entry_t;
 
-DMOD_BUILTIN_API( dmvfs, 1.0, bool, _init, (void) );
+DMOD_BUILTIN_API( dmvfs, 1.0, bool, _init, (int max_mount_points) );
 DMOD_BUILTIN_API( dmvfs, 1.0, bool, _deinit, (void) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _get_max_mount_points, (void) );
 
-DMOD_BUILTIN_API( dmvfs, 1.0, bool, _refresh_fs_list, (void) );
 DMOD_BUILTIN_API( dmvfs, 1.0, bool, _mount_fs, (const char* fs_name, const char* mount_point, const char* config) );
 DMOD_BUILTIN_API( dmvfs, 1.0, bool, _unmount_fs, (const char* mount_point) );
 
@@ -35,7 +31,7 @@ DMOD_BUILTIN_API( dmvfs, 1.0, int, _fclose, (void* fp) );
 DMOD_BUILTIN_API( dmvfs, 1.0, int, _fclose_process, (int pid) );
 DMOD_BUILTIN_API( dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t size, size_t* read_bytes) );
 DMOD_BUILTIN_API( dmvfs, 1.0, int, _fwrite, (void* fp, const void* buf, size_t size, size_t* written_bytes) );
-DMOD_BUILTIN_API( dmvfs, 1.0, int, _fseek, (void* fp, long offset, int whence) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _lseek, (void* fp, long offset, int whence) );
 DMOD_BUILTIN_API( dmvfs, 1.0, long, _ftell, (void* fp) );
 DMOD_BUILTIN_API( dmvfs, 1.0, int, _feof, (void* fp) );
 DMOD_BUILTIN_API( dmvfs, 1.0, int, _fflush, (void* fp) );

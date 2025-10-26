@@ -2,6 +2,8 @@
     "files.associations": {
         "dmod.h": "c",
         "fsi.h": "c",
-        "fsi_defs.h": "c"
+        "fsi_defs.h": "c",
+        "dmfsi.h": "c",
+        "dmod_system.h": "c"
     }
 }
