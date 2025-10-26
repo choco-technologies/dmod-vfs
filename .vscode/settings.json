@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "dmod.h": "c",
+        "fsi.h": "c",
+        "fsi_defs.h": "c"
+    }
+}

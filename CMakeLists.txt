@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.10)
 # ======================================================================
 #               DMOD VFS
 # ======================================================================
-project(dmod-vfs 
+project(dmvfs 
     VERSION 1.0
     DESCRIPTION "DMOD Virtual File System"
     LANGUAGES C CXX)
@@ -36,9 +36,9 @@ FetchContent_MakeAvailable(dmod)
 #               Fetch DMOD File System Interface
 # ======================================================================
 FetchContent_Declare(
-    dmod-fsi
+    dmfsi
     GIT_REPOSITORY
-    https://github.com/choco-technologies/dmod-fsi.git
+    https://github.com/choco-technologies/dmfsi.git
     GIT_TAG        master
 )
 
@@ -46,20 +46,20 @@ FetchContent_Declare(
 #               DMOD File System Interface Configuration
 # ======================================================================
 set(DMOD_DIR ${dmod_SOURCE_DIR})
-FetchContent_MakeAvailable(dmod-fsi)
+FetchContent_MakeAvailable(dmfsi)
 
 # ======================================================================
 #               DMOD VFS Library definition
 # ======================================================================
-add_library(dmod-vfs STATIC
-    src/dmod_vfs.c
+add_library(dmvfs STATIC
+    src/dmvfs.c
 )
 
-target_include_directories(dmod-vfs PUBLIC
+target_include_directories(dmvfs PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/inc>
 )
 
-target_link_libraries(dmod-vfs PUBLIC
+target_link_libraries(dmvfs PUBLIC
     dmod
-    dmod-fsi
+    dmfsi
 )

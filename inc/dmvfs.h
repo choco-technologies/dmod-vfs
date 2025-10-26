@@ -1,0 +1,70 @@
+#ifndef DMVFS_H
+#define DMVFS_H
+
+#include "dmod.h"
+#include "dmfsi.h"
+
+typedef struct {
+
+} dmvfs_fs_t;
+
+typedef struct {
+    uint32_t size;
+    uint32_t attr;
+    uint32_t ctime;
+    uint32_t mtime;
+    uint32_t atime;
+} dmod_fsi_stat_t;
+
+typedef struct {
+    const char* name;
+    uint32_t size;
+    uint32_t attr;
+    uint32_t time;
+} dmod_fsi_dir_entry_t;
+
+DMOD_BUILTIN_API( dmvfs, 1.0, bool, _init, (void) );
+DMOD_BUILTIN_API( dmvfs, 1.0, bool, _deinit, (void) );
+
+DMOD_BUILTIN_API( dmvfs, 1.0, bool, _refresh_fs_list, (void) );
+DMOD_BUILTIN_API( dmvfs, 1.0, bool, _mount_fs, (const char* fs_name, const char* mount_point, const char* config) );
+DMOD_BUILTIN_API( dmvfs, 1.0, bool, _unmount_fs, (const char* mount_point) );
+
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _fopen, (void** fp, const char* path, int mode, int attr, int pid) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _fclose, (void* fp) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _fclose_process, (int pid) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t size, size_t* read_bytes) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _fwrite, (void* fp, const void* buf, size_t size, size_t* written_bytes) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _fseek, (void* fp, long offset, int whence) );
+DMOD_BUILTIN_API( dmvfs, 1.0, long, _ftell, (void* fp) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _feof, (void* fp) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _fflush, (void* fp) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _error, (void* fp) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _remove, (const char* path) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _rename, (const char* oldpath, const char* newpath) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _ioctl, (void* fp, int command, void* arg) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _sync, (void* fp) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _stat, (const char* path, dmod_fsi_stat_t* stat) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _getc, (void* fp) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _putc, (void* fp, int c) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _chmod, (const char* path, int mode) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _utime, (const char* path, uint32_t atime, uint32_t mtime) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _unlink, (const char* path) );
+
+
+// Directory operations
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _mkdir, (const char* path, int mode) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _rmdir, (const char* path) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _chdir, (const char* path) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _opendir, (void** dp, const char* path) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _readdir, (void* dp, dmod_fsi_dir_entry_t* entry) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _closedir, (void* dp) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _direxists, (const char* path) );
+
+// Current working directory
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _getcwd, (char* buffer, size_t size) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _getpwd, (char* buffer, size_t size) );
+
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _toabs, (const char* path, char* abs_path, size_t size) );
+
+#endif // DMVFS_H
