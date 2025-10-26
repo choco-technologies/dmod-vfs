@@ -19,9 +19,10 @@ typedef struct {
     uint32_t time;
 } dmod_fsi_dir_entry_t;
 
-DMOD_BUILTIN_API( dmvfs, 1.0, bool, _init, (int max_mount_points) );
+DMOD_BUILTIN_API( dmvfs, 1.0, bool, _init, (int max_mount_points, int max_open_files) );
 DMOD_BUILTIN_API( dmvfs, 1.0, bool, _deinit, (void) );
 DMOD_BUILTIN_API( dmvfs, 1.0, int, _get_max_mount_points, (void) );
+DMOD_BUILTIN_API( dmvfs, 1.0, int, _get_max_open_files, (void) );
 
 DMOD_BUILTIN_API( dmvfs, 1.0, bool, _mount_fs, (const char* fs_name, const char* mount_point, const char* config) );
 DMOD_BUILTIN_API( dmvfs, 1.0, bool, _unmount_fs, (const char* mount_point) );

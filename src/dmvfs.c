@@ -7,9 +7,18 @@ typedef struct {
     dmfsi_context_t mount_context;
 } mount_point_t;
 
+typedef struct {
+    mount_point_t* mount_point;
+    void* fs_file;
+} file_t;
+
 static mount_point_t* g_mount_points = NULL;
 static int g_max_mount_points = 0;
+static int g_max_open_files = 0;
 static void* g_mutex = NULL;
+static const char* g_cwd = NULL;
+static const char* g_pwd = NULL;
+static file_t* g_open_files = NULL;
 
 /**
  * @brief Check if DMVFS is initialized
@@ -20,6 +29,79 @@ static inline bool is_initialized(void)
     return (g_mount_points != NULL);
 }
 
+/**
+ * @brief Duplicate a string
+ * @param str String to duplicate
+ * @return Pointer to duplicated string, or NULL on failure
+ */
+static const char* duplicate_string(const char* str)
+{
+    if(str == NULL)
+    {
+        return NULL;
+    }
+
+    char* dup = (char*)Dmod_Malloc(strlen(str) + 1);
+    if(dup != NULL)
+    {
+        strcpy(dup, str);
+    }
+    return dup;
+}
+
+/**
+ * @brief Update a string (free old and duplicate new)
+ * @param old_str Old string to free
+ * @param new_str New string to duplicate
+ * @return Pointer to duplicated new string, or NULL on failure
+ */
+static const char* update_string(const char* old_str, const char* new_str)
+{
+    if(old_str != NULL)
+    {
+        Dmod_Free((void*)old_str);
+    }
+    return duplicate_string(new_str);
+}
+
+/**
+ * @brief Convert path to absolute path
+ * @param path Input path
+ * @return Pointer to absolute path, or NULL on failure
+ */
+static const char* to_absolute_path(const char* path)
+{
+    if(path == NULL)
+    {
+        return NULL;
+    }
+
+    if(path[0] == '/')
+    {
+        return duplicate_string(path);
+    }
+    else
+    {
+        size_t cwd_len = (g_cwd != NULL) ? strlen(g_cwd) : 0;
+        size_t path_len = strlen(path);
+        char* abs_path = (char*)Dmod_Malloc(cwd_len + 1 + path_len + 1);
+        if(abs_path != NULL)
+        {
+            if(cwd_len > 0)
+            {
+                strcpy(abs_path, g_cwd);
+                abs_path[cwd_len] = '/';
+                strcpy(abs_path + cwd_len + 1, path);
+            }
+            else
+            {
+                strcpy(abs_path, "/");
+                strcpy(abs_path + 1, path);
+            }
+        }
+        return abs_path;
+    }
+}
 
 /**
  * @brief Find free mount point entry
@@ -69,6 +151,91 @@ static mount_point_t* find_mount_point(const char* mount_point)
 
     DMOD_LOG_WARN("Mount point '%s' not found", mount_point);
     return NULL;
+}
+
+/**
+ * @brief Get mount point for a given path
+ * @param path File path
+ * @return Pointer to the mount point entry, or NULL if not found
+ */
+static mount_point_t* get_mount_point_for_path(const char* path)
+{
+    if(!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return NULL;
+    }
+
+    for(int i = 0; i < g_max_mount_points; i++)
+    {
+        if(g_mount_points[i].mount_point != NULL &&
+           strncmp(path, g_mount_points[i].mount_point, strlen(g_mount_points[i].mount_point)) == 0)
+        {
+            return &g_mount_points[i];
+        }
+    }
+
+    DMOD_LOG_WARN("No mount point found for path '%s'", path);
+    return NULL;
+}
+
+/**
+ * @brief Find free file entry
+ * @return Pointer to free file entry, or NULL if none available
+ */
+static file_t* find_free_file_entry(void)
+{
+    if(!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return NULL;
+    }
+
+    for(int i = 0; i < g_max_open_files; i++)
+    {
+        if(g_open_files[i].mount_point == NULL)
+        {
+            return &g_open_files[i];
+        }
+    }
+
+    DMOD_LOG_ERROR("No free file entries available");
+    return NULL;
+}
+
+/**
+ * @brief Close all files of a given mount point
+ * @param mp_entry Pointer to the mount point entry
+ * @return true on success, false on failure
+ */
+static bool close_all_file_of_mount_point(mount_point_t* mp_entry)
+{
+    if(!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return false;
+    }
+
+    for(int i = 0; i < g_max_open_files; i++)
+    {
+        if(g_open_files[i].mount_point == mp_entry)
+        {
+            dmod_dmfsi_fclose_t close_func = (dmod_dmfsi_fclose_t)Dmod_GetDifFunction(mp_entry->fs_context, dmod_dmfsi_fclose_sig);
+            if(close_func != NULL)
+            {
+                if(!close_func(mp_entry->mount_context, g_open_files[i].fs_file))
+                {
+                    DMOD_LOG_ERROR("Failed to close file in mount point '%s'", mp_entry->mount_point);
+                    return false;
+                }
+            }
+
+            g_open_files[i].mount_point = NULL;
+            g_open_files[i].fs_file = NULL;
+        }
+    }
+
+    return true;
 }
 
 /**
@@ -222,7 +389,7 @@ static bool remove_mount_point(const char* mount_point)
  * 
  * @return true on success, false on failure
  */
-DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points))
+DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points, int max_open_files))
 {
     if (is_initialized())
     {
@@ -243,8 +410,18 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points))
         return false;
     }
 
+    g_open_files = (file_t*)Dmod_Malloc(sizeof(file_t) * max_open_files);
+    if (g_open_files == NULL)
+    {
+        DMOD_LOG_ERROR("Failed to allocate memory for open files");
+        Dmod_Free(g_mount_points);
+        g_mount_points = NULL;
+        return false;
+    }
+
     memset(g_mount_points, 0, sizeof(mount_point_t) * max_mount_points);
     g_max_mount_points = max_mount_points;
+    g_max_open_files = max_open_files;
 
     g_mutex = Dmod_Mutex_New(true);
     if (g_mutex == NULL)
@@ -253,6 +430,23 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points))
         Dmod_Free(g_mount_points);
         g_mount_points = NULL;
         g_max_mount_points = 0;
+        return false;
+    }
+
+    g_cwd = duplicate_string("/");
+    g_pwd = duplicate_string("/");
+    if (g_cwd == NULL || g_pwd == NULL)
+    {
+        DMOD_LOG_ERROR("Failed to allocate memory for CWD or PWD");
+        Dmod_Free(g_mount_points);
+        g_mount_points = NULL;
+        g_max_mount_points = 0;
+        if (g_cwd) Dmod_Free((void*)g_cwd);
+        if (g_pwd) Dmod_Free((void*)g_pwd);
+        g_cwd = NULL;
+        g_pwd = NULL;
+        Dmod_Mutex_Delete(g_mutex);
+        g_mutex = NULL;
         return false;
     }
 
@@ -294,6 +488,9 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _deinit, (void))
 
     // Free the mount points array
     Dmod_Free(g_mount_points);
+    Dmod_Free(g_open_files);
+    Dmod_Free(g_cwd);
+    Dmod_Free(g_pwd);
     g_mount_points = NULL;
     g_max_mount_points = 0;
 
@@ -580,8 +777,60 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getpwd, (char* buffer, size_t size)
     return -1;
 }
 
+/**
+ * @brief Convert a relative path to an absolute path
+ * 
+ * This function converts a given relative path to an absolute path
+ * based on the current working directory (CWD). If the input path
+ * is already absolute, it simply copies the path to the output buffer.
+ * 
+ * @param path Input path (relative or absolute)
+ * @param abs_path Buffer to store the resulting absolute path
+ * @param size Size of the abs_path buffer
+ * 
+ * @return 0 on success, -1 on failure (e.g., buffer too small or invalid input)
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _toabs, (const char* path, char* abs_path, size_t size))
 {
-    // TODO: Implement path to absolute conversion
-    return -1;
+    if (path == NULL || abs_path == NULL || size == 0)
+    {
+        DMOD_LOG_ERROR("Invalid arguments to _toabs");
+        return -1;
+    }
+
+    if (path[0] == '/')
+    {
+        // Path is already absolute
+        if (strlen(path) + 1 > size)
+        {
+            DMOD_LOG_ERROR("Buffer too small for absolute path");
+            return -1;
+        }
+        strcpy(abs_path, path);
+    }
+    else
+    {
+        // Path is relative, prepend the current working directory
+        if (!is_initialized() || g_cwd == NULL)
+        {
+            DMOD_LOG_ERROR("DMVFS is not initialized or CWD is NULL");
+            return -1;
+        }
+
+        size_t cwd_len = strlen(g_cwd);
+        size_t path_len = strlen(path);
+
+        if (cwd_len + 1 + path_len + 1 > size)
+        {
+            DMOD_LOG_ERROR("Buffer too small for absolute path");
+            return -1;
+        }
+
+        strncpy(abs_path, g_cwd, size - 1);
+        abs_path[size - 1] = '\0';
+        strncat(abs_path, "/", size - strlen(abs_path) - 1);
+        strncat(abs_path, path, size - strlen(abs_path) - 1);
+    }
+
+    return 0;
 }
