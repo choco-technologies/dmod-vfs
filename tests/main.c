@@ -76,7 +76,26 @@ int main( int argc, char *argv[] )
         return -1;
     }
 
-    printf("DMVFS initialized successfully.\n");
+    printf("DMVFS initialized successfully.\nMounting ramfs at /mnt...\n");
+
+    if(!dmvfs_mount_fs( "ramfs", "/mnt", NULL ))
+    {
+        printf("Cannot mount ramfs at /mnt\n");
+        dmvfs_deinit();
+        return -1;
+    }
+
+    printf("ramfs mounted at /mnt successfully.\n");
+
+    // Cleanup
+    if(!dmvfs_unmount_fs( "/mnt" ))
+    {
+        printf("Cannot unmount /mnt\n");
+    }
+
+    printf("Unmounted /mnt successfully.\nDeinitializing DMVFS...\n");
+
+    dmvfs_deinit();
 
     return 0;
 }

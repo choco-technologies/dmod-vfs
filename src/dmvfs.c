@@ -360,9 +360,10 @@ static bool remove_mount_point(const char* mount_point)
     dmod_dmfsi_deinit_t deinit_func = (dmod_dmfsi_deinit_t)Dmod_GetDifFunction(mp_entry->fs_context, dmod_dmfsi_deinit_sig);
     if(deinit_func != NULL)
     {
-        if(!deinit_func(mp_entry->mount_context))
+        int result = deinit_func(mp_entry->mount_context);
+        if(result != 0)
         {
-            DMOD_LOG_ERROR("Failed to deinitialize mount context for mount point '%s'\n", mount_point);
+            DMOD_LOG_WARN("Failed to deinitialize mount context for mount point '%s'\n", mount_point);
         }
     }
 
