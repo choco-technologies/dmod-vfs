@@ -19,8 +19,19 @@ add_executable(${PROJECT_NAME}
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR})
 
-# Link libraries
-target_link_libraries(${PROJECT_NAME} dmod dmvfs)
+# Link libraries (including testfs for testing)
+# Use whole-archive to ensure testfs registration symbols are included
+# Link testfs with whole-archive, and ensure it comes before other libraries
+if(UNIX AND NOT APPLE)
+    target_link_libraries(${PROJECT_NAME} 
+        -Wl,--whole-archive testfs -Wl,--no-whole-archive
+        dmod dmvfs
+        -Wl,--allow-multiple-definition
+    )
+else()
+    target_link_libraries(${PROJECT_NAME} testfs dmod dmvfs)
+endif()
+
 
 target_link_options(${PROJECT_NAME} PRIVATE -L ${DMOD_DIR}/scripts)
 target_link_options(${PROJECT_NAME} PRIVATE -T ${CMAKE_CURRENT_SOURCE_DIR}/main.ld)

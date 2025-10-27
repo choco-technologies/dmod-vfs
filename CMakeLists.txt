@@ -64,4 +64,9 @@ target_link_libraries(dmvfs PUBLIC
     dmfsi
 )
 
+# ======================================================================
+#               TestFS - Complete filesystem for testing
+# ======================================================================
+add_subdirectory(testfs)
+
 add_subdirectory(tests)

@@ -12,6 +12,16 @@ The test suite is organized into multiple files for better maintainability:
 - `test_directory_operations.c` - Tests for directory operations (mkdir, rmdir, opendir, readdir, etc.)
 - `test_path_operations.c` - Tests for path operations (getcwd, chdir, toabs, etc.)
 
+## TestFS Module
+
+The test suite uses a custom `testfs` module (located in `/testfs` directory) which provides a complete implementation of all DMFSI interface functions. This in-memory filesystem is specifically designed for testing and includes:
+
+- All file operations (fopen, fread, fwrite, fseek, etc.)
+- All directory operations (mkdir, rmdir, opendir, readdir, etc.)
+- Complete path resolution
+- File and directory metadata support
+- Reference counting for open files/directories
+
 ## Building
 
 The test suite is built automatically with the dmvfs project:
@@ -26,21 +36,17 @@ The executable will be located at `build/tests/dmvfs_example`.
 
 ## Running Tests
 
-To run the tests, you need to provide a ramfs DMF module file:
+To run the tests, simply execute the program without arguments:
 
 ```bash
-./dmvfs_example path/to/ramfs.dmf
+./dmvfs_example
 ```
 
-### Building ramfs Module
+The testfs module is statically linked, so no external DMF file is required.
 
-The ramfs module is part of the dmfsi project. To build it in MODULE mode (to generate a .dmf file):
-
-1. Clone the dmfsi repository
-2. Build in DMOD_MODULE mode
-3. The ramfs.dmf file will be generated in the build directory
-
-Alternatively, you can build ramfs using the dmfsi Makefile in the examples/ramfs directory.
+Options:
+- `-h` or `--help` - Show help message
+- `-v` or `--version` - Show version information
 
 ## Adding New Tests
 
