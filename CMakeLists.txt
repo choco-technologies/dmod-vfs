@@ -63,3 +63,5 @@ target_link_libraries(dmvfs PUBLIC
     dmod
     dmfsi
 )
+
+add_subdirectory(tests)

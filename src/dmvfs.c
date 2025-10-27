@@ -1,3 +1,4 @@
+#define ENABLE_DIF_REGISTRATIONS    ON
 #include "dmvfs.h"
 #include <string.h>
 
@@ -112,7 +113,7 @@ static mount_point_t* find_free_mount_point(void)
 {
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return NULL;
     }
 
@@ -124,7 +125,7 @@ static mount_point_t* find_free_mount_point(void)
         }
     }
 
-    DMOD_LOG_ERROR("No free mount points available");
+    DMOD_LOG_ERROR("No free mount points available\n");
     return NULL;
 }
 
@@ -137,7 +138,7 @@ static mount_point_t* find_mount_point(const char* mount_point)
 {
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return NULL;
     }
 
@@ -150,7 +151,7 @@ static mount_point_t* find_mount_point(const char* mount_point)
         }
     }
 
-    DMOD_LOG_WARN("Mount point '%s' not found", mount_point);
+    DMOD_LOG_WARN("Mount point '%s' not found\n", mount_point);
     return NULL;
 }
 
@@ -163,7 +164,7 @@ static mount_point_t* get_mount_point_for_path(const char* path)
 {
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return NULL;
     }
 
@@ -176,7 +177,7 @@ static mount_point_t* get_mount_point_for_path(const char* path)
         }
     }
 
-    DMOD_LOG_WARN("No mount point found for path '%s'", path);
+    DMOD_LOG_WARN("No mount point found for path '%s'\n", path);
     return NULL;
 }
 
@@ -188,7 +189,7 @@ static file_t* find_free_file_entry(void)
 {
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return NULL;
     }
 
@@ -200,7 +201,7 @@ static file_t* find_free_file_entry(void)
         }
     }
 
-    DMOD_LOG_ERROR("No free file entries available");
+    DMOD_LOG_ERROR("No free file entries available\n");
     return NULL;
 }
 
@@ -213,7 +214,7 @@ static bool close_all_file_of_mount_point(mount_point_t* mp_entry)
 {
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return false;
     }
 
@@ -226,7 +227,7 @@ static bool close_all_file_of_mount_point(mount_point_t* mp_entry)
             {
                 if(!close_func(mp_entry->mount_context, g_open_files[i].fs_file))
                 {
-                    DMOD_LOG_ERROR("Failed to close file in mount point '%s'", mp_entry->mount_point);
+                    DMOD_LOG_ERROR("Failed to close file in mount point '%s'\n", mp_entry->mount_point);
                     return false;
                 }
             }
@@ -248,13 +249,13 @@ static Dmod_Context_t* find_fs_by_name(const char* fs_name)
 {
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return NULL;
     }
 
     if( Dmod_Mutex_Lock(g_mutex) != 0 )
     {
-        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return NULL;
     }
 
@@ -263,14 +264,14 @@ static Dmod_Context_t* find_fs_by_name(const char* fs_name)
     {
         if(fs_context->Header != NULL && strcmp(fs_context->Header->Name, fs_name) == 0)
         {
-            DMOD_LOG_VERBOSE("File system '%s' found", fs_name);
+            DMOD_LOG_VERBOSE("File system '%s' found\n", fs_name);
             Dmod_Mutex_Unlock(g_mutex);
             return fs_context;
         }
         fs_context = Dmod_GetNextDifModule(dmod_dmfsi_fopen_sig, fs_context);
     }
 
-    DMOD_LOG_WARN("File system '%s' not found", fs_name);
+    DMOD_LOG_WARN("File system '%s' not found\n", fs_name);
     Dmod_Mutex_Unlock(g_mutex);
     return NULL;
 }
@@ -286,20 +287,20 @@ static mount_point_t* add_mount_point(const char* mount_point, Dmod_Context_t* f
 {
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return NULL;
     }
 
     if(fs_context == NULL)
     {
-        DMOD_LOG_ERROR("Cannot add mount point '%s': Invalid file system context", mount_point);
+        DMOD_LOG_ERROR("Cannot add mount point '%s': Invalid file system context\n", mount_point);
         return NULL;
     }
 
     const char* module_name = Dmod_GetName(fs_context);
     if(module_name == NULL)
     {
-        DMOD_LOG_ERROR("Cannot add mount point '%s': Failed to get module name", mount_point);
+        DMOD_LOG_ERROR("Cannot add mount point '%s': Failed to get module name\n", mount_point);
         return NULL;
     }
 
@@ -317,7 +318,7 @@ static mount_point_t* add_mount_point(const char* mount_point, Dmod_Context_t* f
         free_entry->mount_context = init_func(config);
         if(free_entry->mount_context == NULL)
         {
-            DMOD_LOG_ERROR("Failed to initialize mount context for mount point '%s'", mount_point);
+            DMOD_LOG_ERROR("Failed to initialize mount context for mount point '%s'\n", mount_point);
             return NULL;
         }
     }
@@ -325,7 +326,7 @@ static mount_point_t* add_mount_point(const char* mount_point, Dmod_Context_t* f
     free_entry->mount_point = Dmod_Malloc(strlen(mount_point) + 1);
     if(free_entry->mount_point == NULL)
     {
-        DMOD_LOG_ERROR("Failed to allocate memory for mount point");
+        DMOD_LOG_ERROR("Failed to allocate memory for mount point\n");
         return NULL;
     }
 
@@ -345,14 +346,14 @@ static bool remove_mount_point(const char* mount_point)
 {
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return false;
     }
 
     mount_point_t* mp_entry = find_mount_point(mount_point);
     if(mp_entry == NULL)
     {
-        DMOD_LOG_ERROR("Mount point '%s' not found", mount_point);
+        DMOD_LOG_ERROR("Mount point '%s' not found\n", mount_point);
         return false;
     }
 
@@ -361,14 +362,14 @@ static bool remove_mount_point(const char* mount_point)
     {
         if(!deinit_func(mp_entry->mount_context))
         {
-            DMOD_LOG_ERROR("Failed to deinitialize mount context for mount point '%s'", mount_point);
+            DMOD_LOG_ERROR("Failed to deinitialize mount context for mount point '%s'\n", mount_point);
         }
     }
 
     const char* module_name = Dmod_GetName(mp_entry->fs_context);
     if(module_name == NULL)
     {
-        DMOD_LOG_ERROR("Cannot remove mount point '%s': Failed to get module name", mount_point);
+        DMOD_LOG_ERROR("Cannot remove mount point '%s': Failed to get module name\n", mount_point);
         return false;
     }
 
@@ -394,27 +395,27 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points, int m
 {
     if (is_initialized())
     {
-        DMOD_LOG_WARN("DMVFS is already initialized");
+        DMOD_LOG_WARN("DMVFS is already initialized\n");
         return false;
     }
 
     if (max_mount_points <= 0)
     {
-        DMOD_LOG_ERROR("Invalid maximum mount points: %d", max_mount_points);
+        DMOD_LOG_ERROR("Invalid maximum mount points: %d\n", max_mount_points);
         return false;
     }
 
     g_mount_points = (mount_point_t*)Dmod_Malloc(sizeof(mount_point_t) * max_mount_points);
     if (g_mount_points == NULL)
     {
-        DMOD_LOG_ERROR("Failed to allocate memory for mount points");
+        DMOD_LOG_ERROR("Failed to allocate memory for mount points\n");
         return false;
     }
 
     g_open_files = (file_t*)Dmod_Malloc(sizeof(file_t) * max_open_files);
     if (g_open_files == NULL)
     {
-        DMOD_LOG_ERROR("Failed to allocate memory for open files");
+        DMOD_LOG_ERROR("Failed to allocate memory for open files\n");
         Dmod_Free(g_mount_points);
         g_mount_points = NULL;
         return false;
@@ -427,7 +428,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points, int m
     g_mutex = Dmod_Mutex_New(true);
     if (g_mutex == NULL)
     {
-        DMOD_LOG_ERROR("Failed to create mutex");
+        DMOD_LOG_ERROR("Failed to create mutex\n");
         Dmod_Free(g_mount_points);
         g_mount_points = NULL;
         g_max_mount_points = 0;
@@ -438,7 +439,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points, int m
     g_pwd = duplicate_string("/");
     if (g_cwd == NULL || g_pwd == NULL)
     {
-        DMOD_LOG_ERROR("Failed to allocate memory for CWD or PWD");
+        DMOD_LOG_ERROR("Failed to allocate memory for CWD or PWD\n");
         Dmod_Free(g_mount_points);
         g_mount_points = NULL;
         g_max_mount_points = 0;
@@ -451,7 +452,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points, int m
         return false;
     }
 
-    DMOD_LOG_INFO("DMVFS initialized with max mount points: %d", max_mount_points);
+    DMOD_LOG_INFO("DMVFS initialized with max mount points: %d\n", max_mount_points);
     return true;
 }
 
@@ -468,13 +469,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _deinit, (void))
 {
     if (!is_initialized())
     {
-        DMOD_LOG_WARN("DMVFS is not initialized");
+        DMOD_LOG_WARN("DMVFS is not initialized\n");
         return false;
     }
 
     if (Dmod_Mutex_Lock(g_mutex) != 0)
     {
-        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return false;
     }
 
@@ -500,7 +501,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _deinit, (void))
     Dmod_Mutex_Delete(g_mutex);
     g_mutex = NULL;
 
-    DMOD_LOG_INFO("DMVFS deinitialized successfully");
+    DMOD_LOG_INFO("DMVFS deinitialized successfully\n");
     return true;
 }
 
@@ -540,20 +541,20 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _mount_fs, (const char* fs_name, co
 {   
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return false;
     }
 
     if(Dmod_Mutex_Lock(g_mutex) != 0)
     {
-        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return false;
     }
 
     Dmod_Context_t* fs_context = find_fs_by_name(fs_name);
     if(fs_context == NULL)
     {
-        DMOD_LOG_ERROR("Cannot mount file system '%s': Not found", fs_name);
+        DMOD_LOG_ERROR("Cannot mount file system '%s': Not found\n", fs_name);
         Dmod_Mutex_Unlock(g_mutex);
         return false;
     }
@@ -561,13 +562,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _mount_fs, (const char* fs_name, co
     mount_point_t* mp_entry = add_mount_point(mount_point, fs_context, config);
     if(mp_entry == NULL)
     {
-        DMOD_LOG_ERROR("Cannot mount file system '%s'", fs_name);
+        DMOD_LOG_ERROR("Cannot mount file system '%s'\n", fs_name);
         Dmod_Mutex_Unlock(g_mutex);
         return false;
     }
 
     Dmod_Mutex_Unlock(g_mutex);
-    DMOD_LOG_INFO("File system '%s' mounted at '%s' successfully", fs_name, mount_point);
+    DMOD_LOG_INFO("File system '%s' mounted at '%s' successfully\n", fs_name, mount_point);
     return true;
 }
 
@@ -585,25 +586,25 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _unmount_fs, (const char* mount_poi
 {
     if(!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return false;
     }
 
     if(Dmod_Mutex_Lock(g_mutex) != 0)
     {
-        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return false;
     }
 
     if(!remove_mount_point(mount_point))
     {
-        DMOD_LOG_ERROR("Cannot unmount file system at mount point '%s'", mount_point);
+        DMOD_LOG_ERROR("Cannot unmount file system at mount point '%s'\n", mount_point);
         Dmod_Mutex_Unlock(g_mutex);
         return false;
     }
 
     Dmod_Mutex_Unlock(g_mutex);
-    DMOD_LOG_INFO("File system at mount point '%s' unmounted successfully", mount_point);
+    DMOD_LOG_INFO("File system at mount point '%s' unmounted successfully\n", mount_point);
     return true;
 }
 
@@ -626,26 +627,26 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
 {
     if (!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
     }
 
     if (fp == NULL || path == NULL)
     {
-        DMOD_LOG_ERROR("Invalid arguments to _fopen");
+        DMOD_LOG_ERROR("Invalid arguments to _fopen\n");
         return -1;
     }
 
     if (Dmod_Mutex_Lock(g_mutex) != 0)
     {
-        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return -1;
     }
 
     const char* abs_path = to_absolute_path(path);
     if (abs_path == NULL)
     {
-        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
         Dmod_Mutex_Unlock(g_mutex);
         return -1;
     }
@@ -653,7 +654,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (mp_entry == NULL)
     {
-        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         Dmod_Mutex_Unlock(g_mutex);
         return -1;
@@ -662,7 +663,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     dmod_dmfsi_fopen_t fopen_func = (dmod_dmfsi_fopen_t)Dmod_GetDifFunction(mp_entry->fs_context, dmod_dmfsi_fopen_sig);
     if (fopen_func == NULL)
     {
-        DMOD_LOG_ERROR("File system does not support fopen for path '%s'", abs_path);
+        DMOD_LOG_ERROR("File system does not support fopen for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         Dmod_Mutex_Unlock(g_mutex);
         return -1;
@@ -674,7 +675,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
 
     if (fs_file == NULL || result != 0)
     {
-        DMOD_LOG_ERROR("Failed to open file '%s'", path);
+        DMOD_LOG_ERROR("Failed to open file '%s'\n", path);
         Dmod_Mutex_Unlock(g_mutex);
         return -1;
     }
@@ -682,7 +683,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     file_t* free_entry = find_free_file_entry();
     if (free_entry == NULL)
     {
-        DMOD_LOG_ERROR("No free file entries available");
+        DMOD_LOG_ERROR("No free file entries available\n");
         Dmod_Mutex_Unlock(g_mutex);
         return -1;
     }
@@ -693,7 +694,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     *fp = free_entry;
 
     Dmod_Mutex_Unlock(g_mutex);
-    DMOD_LOG_INFO("File '%s' opened successfully", path);
+    DMOD_LOG_INFO("File '%s' opened successfully\n", path);
     return 0;
 }
 
@@ -712,13 +713,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
 {
     if (!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
     }
 
     if (fp == NULL)
     {
-        DMOD_LOG_ERROR("Invalid file pointer");
+        DMOD_LOG_ERROR("Invalid file pointer\n");
         return -1;
     }
 
@@ -726,13 +727,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
 
     if (Dmod_Mutex_Lock(g_mutex) != 0)
     {
-        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return -1;
     }
 
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
-        DMOD_LOG_ERROR("Invalid file entry");
+        DMOD_LOG_ERROR("Invalid file entry\n");
         Dmod_Mutex_Unlock(g_mutex);
         return -1;
     }
@@ -742,7 +743,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
 
     if (fclose_func == NULL)
     {
-        DMOD_LOG_ERROR("File system does not support fclose");
+        DMOD_LOG_ERROR("File system does not support fclose\n");
         file_entry->mount_point = NULL;
         file_entry->fs_file = NULL;
         Dmod_Mutex_Unlock(g_mutex);
@@ -751,7 +752,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
 
     if (!fclose_func(file_entry->mount_point->mount_context, file_entry->fs_file))
     {
-        DMOD_LOG_ERROR("Failed to close file");
+        DMOD_LOG_ERROR("Failed to close file\n");
         file_entry->mount_point = NULL;
         file_entry->fs_file = NULL;
         Dmod_Mutex_Unlock(g_mutex);
@@ -762,7 +763,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
     file_entry->fs_file = NULL;
 
     Dmod_Mutex_Unlock(g_mutex);
-    DMOD_LOG_INFO("File closed successfully");
+    DMOD_LOG_INFO("File closed successfully\n");
     return 0;
 }
 
@@ -781,13 +782,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose_process, (int pid))
 {
     if (!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
     }
 
     if (Dmod_Mutex_Lock(g_mutex) != 0)
     {
-        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return -1;
     }
 
@@ -804,7 +805,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose_process, (int pid))
             {
                 if (!fclose_func(g_open_files[i].mount_point->mount_context, g_open_files[i].fs_file))
                 {
-                    DMOD_LOG_ERROR("Failed to close file for process ID %d", pid);
+                    DMOD_LOG_ERROR("Failed to close file for process ID %d\n", pid);
                     success = false;
                 }
             }
@@ -819,12 +820,12 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose_process, (int pid))
 
     if (success)
     {
-        DMOD_LOG_INFO("All files for process ID %d closed successfully", pid);
+        DMOD_LOG_INFO("All files for process ID %d closed successfully\n", pid);
         return 0;
     }
     else
     {
-        DMOD_LOG_ERROR("Failed to close some files for process ID %d", pid);
+        DMOD_LOG_ERROR("Failed to close some files for process ID %d\n", pid);
         return -1;
     }
 }
@@ -847,13 +848,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t
 {
     if (!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
     }
 
     if (fp == NULL || buf == NULL || size == 0)
     {
-        DMOD_LOG_ERROR("Invalid arguments to _fread");
+        DMOD_LOG_ERROR("Invalid arguments to _fread\n");
         return -1;
     }
 
@@ -861,7 +862,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t
 
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
-        DMOD_LOG_ERROR("Invalid file entry");
+        DMOD_LOG_ERROR("Invalid file entry\n");
         return -1;
     }
 
@@ -870,7 +871,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t
 
     if (fread_func == NULL)
     {
-        DMOD_LOG_ERROR("File system does not support fread");
+        DMOD_LOG_ERROR("File system does not support fread\n");
         return -1;
     }
 
@@ -884,11 +885,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t
 
     if (result != 0)
     {
-        DMOD_LOG_ERROR("Failed to read from file");
+        DMOD_LOG_ERROR("Failed to read from file\n");
         return -1;
     }
 
-    DMOD_LOG_VERBOSE("Read %zu bytes from file", bytes_read);
+    DMOD_LOG_VERBOSE("Read %zu bytes from file\n", bytes_read);
     return 0;
 }
 
@@ -910,25 +911,25 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fwrite, (void* fp, const void* buf,
 {
     if (!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
     }
     if (fp == NULL || buf == NULL || size == 0)
     {
-        DMOD_LOG_ERROR("Invalid arguments to _fwrite");
+        DMOD_LOG_ERROR("Invalid arguments to _fwrite\n");
         return -1;
     }
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
-        DMOD_LOG_ERROR("Invalid file entry");
+        DMOD_LOG_ERROR("Invalid file entry\n");
         return -1;
     }
     dmod_dmfsi_fwrite_t fwrite_func = (dmod_dmfsi_fwrite_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_fwrite_sig);
     if (fwrite_func == NULL)
     {
-        DMOD_LOG_ERROR("File system does not support fwrite");
+        DMOD_LOG_ERROR("File system does not support fwrite\n");
         return -1;
     }
     size_t bytes_written = 0;
@@ -937,10 +938,10 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fwrite, (void* fp, const void* buf,
         *written_bytes = bytes_written;
     if (result != 0)
     {
-        DMOD_LOG_ERROR("Failed to write to file");
+        DMOD_LOG_ERROR("Failed to write to file\n");
         return -1;
     }
-    DMOD_LOG_VERBOSE("Wrote %zu bytes to file", bytes_written);
+    DMOD_LOG_VERBOSE("Wrote %zu bytes to file\n", bytes_written);
     return 0;
 }
 
@@ -960,31 +961,31 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _lseek, (void* fp, long offset, int 
 {
     if (!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
     }
     if (fp == NULL)
     {
-        DMOD_LOG_ERROR("Invalid file pointer");
+        DMOD_LOG_ERROR("Invalid file pointer\n");
         return -1;
     }
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
-        DMOD_LOG_ERROR("Invalid file entry");
+        DMOD_LOG_ERROR("Invalid file entry\n");
         return -1;
     }
     dmod_dmfsi_lseek_t lseek_func = (dmod_dmfsi_lseek_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_lseek_sig);
     if (lseek_func == NULL)
     {
-        DMOD_LOG_ERROR("File system does not support lseek");
+        DMOD_LOG_ERROR("File system does not support lseek\n");
         return -1;
     }
     int result = lseek_func(file_entry->mount_point->mount_context, file_entry->fs_file, offset, whence);
     if (result < 0)
     {
-        DMOD_LOG_ERROR("Failed to seek in file");
+        DMOD_LOG_ERROR("Failed to seek in file\n");
         return -1;
     }
     return result;
@@ -1004,31 +1005,31 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, long, _ftell, (void* fp))
 {
     if (!is_initialized())
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized");
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
     }
     if (fp == NULL)
     {
-        DMOD_LOG_ERROR("Invalid file pointer");
+        DMOD_LOG_ERROR("Invalid file pointer\n");
         return -1;
     }
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
-        DMOD_LOG_ERROR("Invalid file entry");
+        DMOD_LOG_ERROR("Invalid file entry\n");
         return -1;
     }
     dmod_dmfsi_tell_t ftell_func = (dmod_dmfsi_tell_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_tell_sig);
     if (ftell_func == NULL)
     {
-        DMOD_LOG_ERROR("File system does not support ftell");
+        DMOD_LOG_ERROR("File system does not support ftell\n");
         return -1;
     }
     long result = ftell_func(file_entry->mount_point->mount_context, file_entry->fs_file);
     if (result < 0)
     {
-        DMOD_LOG_ERROR("Failed to get file position");
+        DMOD_LOG_ERROR("Failed to get file position\n");
         return -1;
     }
     return result;
@@ -1284,21 +1285,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chmod, (const char* path, int mode)
 {
     if (!is_initialized() || path == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL\n");
         return -1;
     }
 
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
-        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
         return -1;
     }
 
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
-        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1308,7 +1309,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chmod, (const char* path, int mode)
 
     if (!chmod_func)
     {
-        DMOD_LOG_ERROR("File system does not support chmod for path '%s'", abs_path);
+        DMOD_LOG_ERROR("File system does not support chmod for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1318,11 +1319,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chmod, (const char* path, int mode)
 
     if (result != 0)
     {
-        DMOD_LOG_ERROR("Failed to change permissions for '%s'", path);
+        DMOD_LOG_ERROR("Failed to change permissions for '%s'\n", path);
         return -1;
     }
 
-    DMOD_LOG_INFO("Permissions for '%s' changed successfully", path);
+    DMOD_LOG_INFO("Permissions for '%s' changed successfully\n", path);
     return 0;
 }
 /**
@@ -1341,21 +1342,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _utime, (const char* path, uint32_t 
 {
     if (!is_initialized() || path == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL\n");
         return -1;
     }
 
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
-        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
         return -1;
     }
 
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
-        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1365,7 +1366,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _utime, (const char* path, uint32_t 
 
     if (!utime_func)
     {
-        DMOD_LOG_ERROR("File system does not support utime for path '%s'", abs_path);
+        DMOD_LOG_ERROR("File system does not support utime for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1375,11 +1376,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _utime, (const char* path, uint32_t 
 
     if (result != 0)
     {
-        DMOD_LOG_ERROR("Failed to update times for '%s'", path);
+        DMOD_LOG_ERROR("Failed to update times for '%s'\n", path);
         return -1;
     }
 
-    DMOD_LOG_INFO("Times for '%s' updated successfully", path);
+    DMOD_LOG_INFO("Times for '%s' updated successfully\n", path);
     return 0;
 }
 
@@ -1396,21 +1397,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _unlink, (const char* path))
 {
     if (!is_initialized() || path == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL\n");
         return -1;
     }
 
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
-        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
         return -1;
     }
 
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
-        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1420,7 +1421,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _unlink, (const char* path))
 
     if (!unlink_func)
     {
-        DMOD_LOG_ERROR("File system does not support unlink for path '%s'", abs_path);
+        DMOD_LOG_ERROR("File system does not support unlink for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1430,11 +1431,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _unlink, (const char* path))
 
     if (result != 0)
     {
-        DMOD_LOG_ERROR("Failed to remove file '%s'", path);
+        DMOD_LOG_ERROR("Failed to remove file '%s'\n", path);
         return -1;
     }
 
-    DMOD_LOG_INFO("File '%s' removed successfully", path);
+    DMOD_LOG_INFO("File '%s' removed successfully\n", path);
     return 0;
 }
 
@@ -1452,21 +1453,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _mkdir, (const char* path, int mode)
 {
     if (!is_initialized() || path == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL\n");
         return -1;
     }
 
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
-        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
         return -1;
     }
 
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
-        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1476,7 +1477,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _mkdir, (const char* path, int mode)
 
     if (!mkdir_func)
     {
-        DMOD_LOG_ERROR("File system does not support mkdir for path '%s'", abs_path);
+        DMOD_LOG_ERROR("File system does not support mkdir for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1486,11 +1487,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _mkdir, (const char* path, int mode)
 
     if (result != 0)
     {
-        DMOD_LOG_ERROR("Failed to create directory '%s'", path);
+        DMOD_LOG_ERROR("Failed to create directory '%s'\n", path);
         return -1;
     }
 
-    DMOD_LOG_INFO("Directory '%s' created successfully", path);
+    DMOD_LOG_INFO("Directory '%s' created successfully\n", path);
     return 0;
 }
 /**
@@ -1506,21 +1507,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rmdir, (const char* path))
 {
     if (!is_initialized() || path == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL\n");
         return -1;
     }
 
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
-        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
         return -1;
     }
 
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
-        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1530,7 +1531,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rmdir, (const char* path))
 
     if (!rmdir_func)
     {
-        DMOD_LOG_ERROR("File system does not support rmdir for path '%s'", abs_path);
+        DMOD_LOG_ERROR("File system does not support rmdir for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1540,11 +1541,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rmdir, (const char* path))
 
     if (result != 0)
     {
-        DMOD_LOG_ERROR("Failed to remove directory '%s'", path);
+        DMOD_LOG_ERROR("Failed to remove directory '%s'\n", path);
         return -1;
     }
 
-    DMOD_LOG_INFO("Directory '%s' removed successfully", path);
+    DMOD_LOG_INFO("Directory '%s' removed successfully\n", path);
     return 0;
 }
 
@@ -1561,21 +1562,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chdir, (const char* path))
 {
     if (!is_initialized() || path == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL\n");
         return -1;
     }
 
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
-        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
         return -1;
     }
 
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
-        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1585,7 +1586,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chdir, (const char* path))
 
     if (!direxists_func || !direxists_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point)))
     {
-        DMOD_LOG_ERROR("Directory '%s' does not exist", abs_path);
+        DMOD_LOG_ERROR("Directory '%s' does not exist\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1595,11 +1596,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chdir, (const char* path))
 
     if (!g_cwd)
     {
-        DMOD_LOG_ERROR("Failed to update current working directory");
+        DMOD_LOG_ERROR("Failed to update current working directory\n");
         return -1;
     }
 
-    DMOD_LOG_INFO("Current working directory changed to '%s'", g_cwd);
+    DMOD_LOG_INFO("Current working directory changed to '%s'\n", g_cwd);
     return 0;
 }
 
@@ -1617,21 +1618,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
 {
     if (!is_initialized() || dp == NULL || path == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _opendir");
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _opendir\n");
         return -1;
     }
 
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
-        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
         return -1;
     }
 
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
-        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1641,7 +1642,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
 
     if (!opendir_func)
     {
-        DMOD_LOG_ERROR("File system does not support opendir for path '%s'", abs_path);
+        DMOD_LOG_ERROR("File system does not support opendir for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1652,12 +1653,12 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
 
     if (result != 0 || dir_handle == NULL)
     {
-        DMOD_LOG_ERROR("Failed to open directory '%s'", path);
+        DMOD_LOG_ERROR("Failed to open directory '%s'\n", path);
         return -1;
     }
 
     *dp = dir_handle;
-    DMOD_LOG_INFO("Directory '%s' opened successfully", path);
+    DMOD_LOG_INFO("Directory '%s' opened successfully\n", path);
     return 0;
 }
 /**
@@ -1674,7 +1675,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmfsi_dir_entry
 {
     if (!is_initialized() || dp == NULL || entry == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _readdir");
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _readdir\n");
         return -1;
     }
 
@@ -1682,7 +1683,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmfsi_dir_entry
 
     if (dir_entry->mount_point == NULL || dir_entry->fs_file == NULL)
     {
-        DMOD_LOG_ERROR("Invalid directory handle");
+        DMOD_LOG_ERROR("Invalid directory handle\n");
         return -1;
     }
 
@@ -1691,7 +1692,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmfsi_dir_entry
 
     if (!readdir_func)
     {
-        DMOD_LOG_ERROR("File system does not support readdir");
+        DMOD_LOG_ERROR("File system does not support readdir\n");
         return -1;
     }
 
@@ -1699,7 +1700,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmfsi_dir_entry
 
     if (result != 0)
     {
-        DMOD_LOG_VERBOSE("End of directory or error reading directory");
+        DMOD_LOG_VERBOSE("End of directory or error reading directory\n");
         return -1;
     }
 
@@ -1718,7 +1719,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
 {
     if (!is_initialized() || dp == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or invalid directory handle");
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid directory handle\n");
         return -1;
     }
 
@@ -1726,7 +1727,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
 
     if (dir_entry->mount_point == NULL || dir_entry->fs_file == NULL)
     {
-        DMOD_LOG_ERROR("Invalid directory handle");
+        DMOD_LOG_ERROR("Invalid directory handle\n");
         return -1;
     }
 
@@ -1735,7 +1736,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
 
     if (!closedir_func)
     {
-        DMOD_LOG_ERROR("File system does not support closedir");
+        DMOD_LOG_ERROR("File system does not support closedir\n");
         return -1;
     }
 
@@ -1743,14 +1744,14 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
 
     if (result != 0)
     {
-        DMOD_LOG_ERROR("Failed to close directory");
+        DMOD_LOG_ERROR("Failed to close directory\n");
         return -1;
     }
 
     dir_entry->mount_point = NULL;
     dir_entry->fs_file = NULL;
 
-    DMOD_LOG_INFO("Directory closed successfully");
+    DMOD_LOG_INFO("Directory closed successfully\n");
     return 0;
 }
 /**
@@ -1766,21 +1767,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _direxists, (const char* path))
 {
     if (!is_initialized() || path == NULL)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL\n");
         return -1;
     }
 
     char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
-        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
         return -1;
     }
 
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
-        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1790,7 +1791,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _direxists, (const char* path))
 
     if (!direxists_func)
     {
-        DMOD_LOG_ERROR("File system does not support direxists for path '%s'", abs_path);
+        DMOD_LOG_ERROR("File system does not support direxists for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
         return -1;
     }
@@ -1814,13 +1815,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getcwd, (char* buffer, size_t size)
 {
     if (!is_initialized() || buffer == NULL || size == 0)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _getcwd");
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _getcwd\n");
         return -1;
     }
 
     if (strlen(g_cwd) + 1 > size)
     {
-        DMOD_LOG_ERROR("Buffer too small for current working directory");
+        DMOD_LOG_ERROR("Buffer too small for current working directory\n");
         return -1;
     }
 
@@ -1841,13 +1842,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getpwd, (char* buffer, size_t size)
 {
     if (!is_initialized() || buffer == NULL || size == 0)
     {
-        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _getpwd");
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _getpwd\n");
         return -1;
     }
 
     if (strlen(g_pwd) + 1 > size)
     {
-        DMOD_LOG_ERROR("Buffer too small for process working directory");
+        DMOD_LOG_ERROR("Buffer too small for process working directory\n");
         return -1;
     }
 
@@ -1872,7 +1873,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _toabs, (const char* path, char* abs
 {
     if (path == NULL || abs_path == NULL || size == 0)
     {
-        DMOD_LOG_ERROR("Invalid arguments to _toabs");
+        DMOD_LOG_ERROR("Invalid arguments to _toabs\n");
         return -1;
     }
 
@@ -1881,7 +1882,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _toabs, (const char* path, char* abs
         // Path is already absolute
         if (strlen(path) + 1 > size)
         {
-            DMOD_LOG_ERROR("Buffer too small for absolute path");
+            DMOD_LOG_ERROR("Buffer too small for absolute path\n");
             return -1;
         }
         strcpy(abs_path, path);
@@ -1891,7 +1892,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _toabs, (const char* path, char* abs
         // Path is relative, prepend the current working directory
         if (!is_initialized() || g_cwd == NULL)
         {
-            DMOD_LOG_ERROR("DMVFS is not initialized or CWD is NULL");
+            DMOD_LOG_ERROR("DMVFS is not initialized or CWD is NULL\n");
             return -1;
         }
 
@@ -1900,7 +1901,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _toabs, (const char* path, char* abs
 
         if (cwd_len + 1 + path_len + 1 > size)
         {
-            DMOD_LOG_ERROR("Buffer too small for absolute path");
+            DMOD_LOG_ERROR("Buffer too small for absolute path\n");
             return -1;
         }
 
