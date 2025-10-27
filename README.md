@@ -14,7 +14,7 @@ make
 
 ## Testing
 
-The project includes a comprehensive test suite covering all interface functions. Tests are built by default. To build and run tests:
+The project includes an integration test suite that tests dmvfs with a real filesystem implementation (RamFS). Tests are built by default. To build and run tests:
 
 ```bash
 cd build
