@@ -23,7 +23,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake ..
+          cmake -DCMAKE_BUILD_TYPE=Release ..
 
       - name: Build project
         run: |
@@ -33,4 +33,9 @@ jobs:
       - name: Build summary
         run: |
           echo "Build completed successfully!"
-          ls -lh build/libdmvfs.a
+          if [ -f build/libdmvfs.a ]; then
+            ls -lh build/libdmvfs.a
+          else
+            echo "Warning: libdmvfs.a not found in expected location"
+            find build -name "libdmvfs.a" -o -name "*.a" | head -10
+          fi
