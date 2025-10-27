@@ -63,3 +63,12 @@ target_link_libraries(dmvfs PUBLIC
     dmod
     dmfsi
 )
+
+# ======================================================================
+#               DMVFS Tests
+# ======================================================================
+option(BUILD_TESTS "Build tests" ON)
+if(BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
