@@ -1,0 +1,2 @@
+/usr/bin/ar qc libmock_fs_sigs.a CMakeFiles/mock_fs_sigs.dir/mock_fs_sigs.c.o
+/usr/bin/ranlib libmock_fs_sigs.a
