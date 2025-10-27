@@ -72,3 +72,118 @@ dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _fopen, (dmfsi_context_t ctx, 
 {
     return 0;
 }
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _fclose, (dmfsi_context_t ctx, void* fp) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _fread, (dmfsi_context_t ctx, void* fp, void* buffer, size_t size, size_t* read) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _fwrite, (dmfsi_context_t ctx, void* fp, const void* buffer, size_t size, size_t* written) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, long, _lseek, (dmfsi_context_t ctx, void* fp, long offset, int whence) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _ioctl, (dmfsi_context_t ctx, void* fp, int request, void* arg) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _sync, (dmfsi_context_t ctx, void* fp) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _getc, (dmfsi_context_t ctx, void* fp) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _putc, (dmfsi_context_t ctx, void* fp, int c) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, long, _tell, (dmfsi_context_t ctx, void* fp) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _eof, (dmfsi_context_t ctx, void* fp) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, long, _size, (dmfsi_context_t ctx, void* fp) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _fflush, (dmfsi_context_t ctx, void* fp) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _error, (dmfsi_context_t ctx, void* fp) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _opendir, (dmfsi_context_t ctx, void** dp, const char* path) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _closedir, (dmfsi_context_t ctx, void* dp) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _readdir, (dmfsi_context_t ctx, void* dp, dmfsi_dir_entry_t* entry) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _stat, (dmfsi_context_t ctx, const char* path, dmfsi_stat_t* stat) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _unlink, (dmfsi_context_t ctx, const char* path) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _rename, (dmfsi_context_t ctx, const char* oldpath, const char* newpath) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _chmod, (dmfsi_context_t ctx, const char* path, int mode) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _utime, (dmfsi_context_t ctx, const char* path, uint32_t atime, uint32_t mtime) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _mkdir, (dmfsi_context_t ctx, const char* path, int mode) )
+{
+    return 0;
+}
+
+dmod_dmfsi_dif_api_declaration( 1.0, testfs, int, _direxists, (dmfsi_context_t ctx, const char* path) )
+{
+    return 0;
+}
