@@ -1,0 +1,60 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - develop
+      - 'feature/**'
+      - 'copilot/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: chocotechnologies/dmod:1.0.2
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=Release ..
+
+      - name: Build project
+        run: |
+          cd build
+          cmake --build .
+
+      - name: Build dmfsi modules for testing
+        run: |
+          cd build
+          mkdir -p _deps/dmfsi-src/build
+          cd _deps/dmfsi-src/build
+          cmake .. -DDMOD_MODE=DMOD_MODULE -DDMOD_DIR=$(pwd)/../../dmod-src
+          cmake --build .
+
+      - name: Run tests
+        run: |
+          cd build
+          if [ -f tests/dmvfs_example ] && [ -x tests/dmvfs_example ]; then
+            echo "Running dmvfs_example test..."
+            ./tests/dmvfs_example ./_deps/dmfsi-src/build/dmf/ramfs.dmf
+          else
+            echo "Test executable tests/dmvfs_example not found, skipping tests"
+            echo "Note: Tests will be run once test executables are added"
+          fi
+
+      - name: Build summary
+        run: |
+          echo "Build completed successfully!"
+          if [ -f build/libdmvfs.a ]; then
+            ls -lh build/libdmvfs.a
+          else
+            echo "Warning: libdmvfs.a not found in expected location"
+            find build -name "libdmvfs.a" -o -name "*.a" | head -10
+          fi
