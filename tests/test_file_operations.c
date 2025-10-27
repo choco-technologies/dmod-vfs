@@ -259,20 +259,20 @@ static void test_file_char_io(void)
     void* fp = NULL;
     int result;
     int ch;
+    const char test_chars[] = {'A', 'B', 'C'};
+    const int num_chars = sizeof(test_chars) / sizeof(test_chars[0]);
     
     // Create a file and write some characters
     result = dmvfs_fopen(&fp, "/mnt/char_test.txt", DMFSI_O_WRONLY | DMFSI_O_CREAT | DMFSI_O_TRUNC, 0, 0);
     TEST_ASSERT_EQ(result, DMFSI_OK, "File created for char I/O test");
     
     // Write characters using putc
-    result = dmvfs_putc(fp, 'A');
-    TEST_ASSERT_EQ(result, DMFSI_OK, "Character 'A' written");
-    
-    result = dmvfs_putc(fp, 'B');
-    TEST_ASSERT_EQ(result, DMFSI_OK, "Character 'B' written");
-    
-    result = dmvfs_putc(fp, 'C');
-    TEST_ASSERT_EQ(result, DMFSI_OK, "Character 'C' written");
+    for (int i = 0; i < num_chars; i++) {
+        result = dmvfs_putc(fp, test_chars[i]);
+        char msg[64];
+        sprintf(msg, "Character '%c' written", test_chars[i]);
+        TEST_ASSERT_EQ(result, DMFSI_OK, msg);
+    }
     
     result = dmvfs_fclose(fp);
     TEST_ASSERT_EQ(result, DMFSI_OK, "File closed");
@@ -281,14 +281,10 @@ static void test_file_char_io(void)
     result = dmvfs_fopen(&fp, "/mnt/char_test.txt", DMFSI_O_RDONLY, 0, 0);
     TEST_ASSERT_EQ(result, DMFSI_OK, "File opened for reading");
     
-    ch = dmvfs_getc(fp);
-    TEST_ASSERT_EQ(ch, 'A', "Read character 'A'");
-    
-    ch = dmvfs_getc(fp);
-    TEST_ASSERT_EQ(ch, 'B', "Read character 'B'");
-    
-    ch = dmvfs_getc(fp);
-    TEST_ASSERT_EQ(ch, 'C', "Read character 'C'");
+    for (int i = 0; i < num_chars; i++) {
+        ch = dmvfs_getc(fp);
+        TEST_ASSERT_EQ(ch, test_chars[i], "Read correct character");
+    }
     
     result = dmvfs_fclose(fp);
     TEST_ASSERT_EQ(result, DMFSI_OK, "File closed");

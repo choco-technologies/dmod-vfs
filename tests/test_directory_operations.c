@@ -148,6 +148,12 @@ static void test_dir_remove(void)
     printf("\nTest: Directory removal\n");
     
     int result;
+    const char* files_to_remove[] = {
+        "/mnt/test_dir/file1.txt",
+        "/mnt/test_dir/file2.txt",
+        "/mnt/test_dir/file3.txt"
+    };
+    const int num_files = sizeof(files_to_remove) / sizeof(files_to_remove[0]);
     
     // Try to remove non-empty directory (should fail)
     result = dmvfs_rmdir("/mnt/test_dir");
@@ -164,15 +170,11 @@ static void test_dir_remove(void)
     result = dmvfs_rmdir("/mnt/test_dir/subdir1");
     TEST_ASSERT_EQ(result, DMFSI_OK, "Subdirectory removed");
     
-    // Remove files from test_dir
-    result = dmvfs_remove("/mnt/test_dir/file1.txt");
-    TEST_ASSERT_EQ(result, DMFSI_OK, "file1.txt removed");
-    
-    result = dmvfs_remove("/mnt/test_dir/file2.txt");
-    TEST_ASSERT_EQ(result, DMFSI_OK, "file2.txt removed");
-    
-    result = dmvfs_remove("/mnt/test_dir/file3.txt");
-    TEST_ASSERT_EQ(result, DMFSI_OK, "file3.txt removed");
+    // Remove files from test_dir using loop
+    for (int i = 0; i < num_files; i++) {
+        result = dmvfs_remove(files_to_remove[i]);
+        TEST_ASSERT_EQ(result, DMFSI_OK, "File removed from test_dir");
+    }
     
     // Now remove the empty directory
     result = dmvfs_rmdir("/mnt/test_dir");
