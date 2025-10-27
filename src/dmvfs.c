@@ -17,8 +17,8 @@ static mount_point_t* g_mount_points = NULL;
 static int g_max_mount_points = 0;
 static int g_max_open_files = 0;
 static void* g_mutex = NULL;
-static const char* g_cwd = NULL;
-static const char* g_pwd = NULL;
+static char* g_cwd = NULL;
+static char* g_pwd = NULL;
 static file_t* g_open_files = NULL;
 
 /**
@@ -35,14 +35,14 @@ static inline bool is_initialized(void)
  * @param str String to duplicate
  * @return Pointer to duplicated string, or NULL on failure
  */
-static const char* duplicate_string(const char* str)
+static char* duplicate_string(const char* str)
 {
     if(str == NULL)
     {
         return NULL;
     }
 
-    char* dup = (char*)Dmod_Malloc(strlen(str) + 1);
+    char* dup = Dmod_Malloc(strlen(str) + 1);
     if(dup != NULL)
     {
         strcpy(dup, str);
@@ -515,6 +515,16 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _get_max_mount_points, (void))
 }
 
 /**
+ * @brief Get maximum number of open files
+ * 
+ * @return Maximum number of open files
+ */
+DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _get_max_open_files, (void))
+{
+    return g_max_open_files;
+}
+
+/**
  * @brief Mount file system
  * 
  * The function mounts a file system by its name at the specified mount point.
@@ -658,10 +668,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
         return -1;
     }
 
-    void* fs_file = fopen_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), mode, attr, pid);
+    void* fs_file = NULL;
+    int result = fopen_func(mp_entry->mount_context, &fs_file, abs_path + strlen(mp_entry->mount_point), mode, attr);
     Dmod_Free((void*)abs_path);
 
-    if (fs_file == NULL)
+    if (fs_file == NULL || result != 0)
     {
         DMOD_LOG_ERROR("Failed to open file '%s'", path);
         Dmod_Mutex_Unlock(g_mutex);
@@ -818,60 +829,333 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose_process, (int pid))
     }
 }
 
+/**
+ * @brief Read data from an open file in the DMVFS
+ * 
+ * This function reads data from a file that was previously opened in the DMVFS.
+ * It invokes the file system's read function and updates the read_bytes parameter
+ * with the number of bytes actually read.
+ * 
+ * @param fp Pointer to the file handle
+ * @param buf Buffer to store the read data
+ * @param size Number of bytes to read
+ * @param read_bytes Pointer to store the number of bytes actually read
+ * 
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t size, size_t* read_bytes))
 {
-    // TODO: Implement file read
-    if (read_bytes) *read_bytes = 0;
-    return -1;
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return -1;
+    }
+
+    if (fp == NULL || buf == NULL || size == 0)
+    {
+        DMOD_LOG_ERROR("Invalid arguments to _fread");
+        return -1;
+    }
+
+    file_t* file_entry = (file_t*)fp;
+
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file entry");
+        return -1;
+    }
+
+    dmod_dmfsi_fread_t fread_func = (dmod_dmfsi_fread_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_fread_sig);
+
+    if (fread_func == NULL)
+    {
+        DMOD_LOG_ERROR("File system does not support fread");
+        return -1;
+    }
+
+    size_t bytes_read = 0;
+    int result = fread_func(file_entry->mount_point->mount_context, file_entry->fs_file, buf, size, &bytes_read);
+
+    if (read_bytes)
+    {
+        *read_bytes = bytes_read;
+    }
+
+    if (result != 0)
+    {
+        DMOD_LOG_ERROR("Failed to read from file");
+        return -1;
+    }
+
+    DMOD_LOG_VERBOSE("Read %zu bytes from file", bytes_read);
+    return 0;
 }
 
+/**
+ * @brief Write data to an open file in the DMVFS
+ *
+ * This function writes data to a file that was previously opened in the DMVFS.
+ * It invokes the file system's write function and updates the written_bytes parameter
+ * with the number of bytes actually written.
+ *
+ * @param fp Pointer to the file handle
+ * @param buf Buffer containing the data to write
+ * @param size Number of bytes to write
+ * @param written_bytes Pointer to store the number of bytes actually written
+ *
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fwrite, (void* fp, const void* buf, size_t size, size_t* written_bytes))
 {
-    // TODO: Implement file write
-    if (written_bytes) *written_bytes = 0;
-    return -1;
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return -1;
+    }
+    if (fp == NULL || buf == NULL || size == 0)
+    {
+        DMOD_LOG_ERROR("Invalid arguments to _fwrite");
+        return -1;
+    }
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file entry");
+        return -1;
+    }
+    dmod_dmfsi_fwrite_t fwrite_func = (dmod_dmfsi_fwrite_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_fwrite_sig);
+    if (fwrite_func == NULL)
+    {
+        DMOD_LOG_ERROR("File system does not support fwrite");
+        return -1;
+    }
+    size_t bytes_written = 0;
+    int result = fwrite_func(file_entry->mount_point->mount_context, file_entry->fs_file, buf, size, &bytes_written);
+    if (written_bytes)
+        *written_bytes = bytes_written;
+    if (result != 0)
+    {
+        DMOD_LOG_ERROR("Failed to write to file");
+        return -1;
+    }
+    DMOD_LOG_VERBOSE("Wrote %zu bytes to file", bytes_written);
+    return 0;
 }
 
+/**
+ * @brief Seek to a position in an open file in the DMVFS
+ *
+ * This function sets the file position for a file previously opened in the DMVFS.
+ * It invokes the file system's lseek function.
+ *
+ * @param fp Pointer to the file handle
+ * @param offset Offset to seek to
+ * @param whence Seek mode (SEEK_SET, SEEK_CUR, SEEK_END)
+ *
+ * @return New offset on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _lseek, (void* fp, long offset, int whence))
 {
-    // TODO: Implement file seek
-    return -1;
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return -1;
+    }
+    if (fp == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file pointer");
+        return -1;
+    }
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file entry");
+        return -1;
+    }
+    dmod_dmfsi_lseek_t lseek_func = (dmod_dmfsi_lseek_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_lseek_sig);
+    if (lseek_func == NULL)
+    {
+        DMOD_LOG_ERROR("File system does not support lseek");
+        return -1;
+    }
+    int result = lseek_func(file_entry->mount_point->mount_context, file_entry->fs_file, offset, whence);
+    if (result < 0)
+    {
+        DMOD_LOG_ERROR("Failed to seek in file");
+        return -1;
+    }
+    return result;
 }
 
+/**
+ * @brief Get the current position in an open file in the DMVFS
+ *
+ * This function returns the current file position for a file previously opened in the DMVFS.
+ * It invokes the file system's ftell function.
+ *
+ * @param fp Pointer to the file handle
+ *
+ * @return Current offset on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, long, _ftell, (void* fp))
 {
-    // TODO: Implement file tell
-    return -1;
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return -1;
+    }
+    if (fp == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file pointer");
+        return -1;
+    }
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file entry");
+        return -1;
+    }
+    dmod_dmfsi_tell_t ftell_func = (dmod_dmfsi_tell_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_tell_sig);
+    if (ftell_func == NULL)
+    {
+        DMOD_LOG_ERROR("File system does not support ftell");
+        return -1;
+    }
+    long result = ftell_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    if (result < 0)
+    {
+        DMOD_LOG_ERROR("Failed to get file position");
+        return -1;
+    }
+    return result;
 }
 
+/**
+ * @brief Check if end-of-file has been reached for a DMVFS file
+ *
+ * @param fp Pointer to the file handle
+ * @return 1 if EOF, 0 otherwise, -1 on error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _feof, (void* fp))
 {
-    // TODO: Implement file EOF check
-    return 0;
+    if (!is_initialized() || fp == NULL)
+        return -1;
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+        return -1;
+    dmod_dmfsi_eof_t feof_func = (dmod_dmfsi_eof_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_eof_sig);
+    if (!feof_func)
+        return -1;
+    return feof_func(file_entry->mount_point->mount_context, file_entry->fs_file);
 }
 
+/**
+ * @brief Flush file buffers for a DMVFS file
+ *
+ * @param fp Pointer to the file handle
+ * @return 0 on success, -1 on error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fflush, (void* fp))
 {
-    // TODO: Implement file flush
-    return -1;
+    if (!is_initialized() || fp == NULL)
+        return -1;
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+        return -1;
+    dmod_dmfsi_fflush_t fflush_func = (dmod_dmfsi_fflush_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_fflush_sig);
+    if (!fflush_func)
+        return -1;
+    return fflush_func(file_entry->mount_point->mount_context, file_entry->fs_file);
 }
 
+/**
+ * @brief Get error status for a DMVFS file
+ *
+ * @param fp Pointer to the file handle
+ * @return Error code or 0 if no error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _error, (void* fp))
 {
-    // TODO: Implement error check
-    return 0;
+    if (!is_initialized() || fp == NULL)
+        return -1;
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+        return -1;
+    dmod_dmfsi_error_t error_func = (dmod_dmfsi_error_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_error_sig);
+    if (!error_func)
+        return -1;
+    return error_func(file_entry->mount_point->mount_context, file_entry->fs_file);
 }
 
+/**
+ * @brief Remove a file in DMVFS
+ *
+ * @param path Path to the file
+ * @return 0 on success, -1 on error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _remove, (const char* path))
 {
-    // TODO: Implement file removal
-    return -1;
+    if (!is_initialized() || path == NULL)
+        return -1;
+    const char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+        return -1;
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+    dmod_dmfsi_unlink_t remove_func = (dmod_dmfsi_unlink_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_unlink_sig);
+    int result = -1;
+    if (remove_func)
+        result = remove_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point));
+    Dmod_Free((void*)abs_path);
+    return result;
 }
 
+/**
+ * @brief Rename a file in DMVFS
+ *
+ * @param oldpath Old file path
+ * @param newpath New file path
+ * @return 0 on success, -1 on error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rename, (const char* oldpath, const char* newpath))
 {
-    // TODO: Implement file rename
-    return -1;
+    if (!is_initialized() || oldpath == NULL || newpath == NULL)
+        return -1;
+    const char* abs_old = to_absolute_path(oldpath);
+    const char* abs_new = to_absolute_path(newpath);
+    if (!abs_old || !abs_new)
+    {
+        if (abs_old) Dmod_Free((void*)abs_old);
+        if (abs_new) Dmod_Free((void*)abs_new);
+        return -1;
+    }
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_old);
+    if (!mp_entry)
+    {
+        Dmod_Free((void*)abs_old);
+        Dmod_Free((void*)abs_new);
+        return -1;
+    }
+    dmod_dmfsi_rename_t rename_func = (dmod_dmfsi_rename_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_rename_sig);
+    int result = -1;
+    if (rename_func)
+        result = rename_func(mp_entry->mount_context, abs_old + strlen(mp_entry->mount_point), abs_new + strlen(mp_entry->mount_point));
+    Dmod_Free((void*)abs_old);
+    Dmod_Free((void*)abs_new);
+    return result;
 }
 
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _ioctl, (void* fp, int command, void* arg))
