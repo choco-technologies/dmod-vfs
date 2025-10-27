@@ -56,7 +56,7 @@ static char* duplicate_string(const char* str)
  * @param new_str New string to duplicate
  * @return Pointer to duplicated new string, or NULL on failure
  */
-static const char* update_string(const char* old_str, const char* new_str)
+static char* update_string(const char* old_str, const char* new_str)
 {
     if(old_str != NULL)
     {
@@ -1158,84 +1158,552 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rename, (const char* oldpath, const
     return result;
 }
 
+/**
+ * @brief Perform an ioctl operation on a DMVFS file
+ *
+ * @param fp Pointer to the file handle
+ * @param command Ioctl command
+ * @param arg Argument for the command
+ * @return 0 on success, -1 on error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _ioctl, (void* fp, int command, void* arg))
 {
-    // TODO: Implement ioctl
-    return -1;
+    if (!is_initialized() || fp == NULL)
+        return -1;
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+        return -1;
+    dmod_dmfsi_ioctl_t ioctl_func = (dmod_dmfsi_ioctl_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_ioctl_sig);
+    if (!ioctl_func)
+        return -1;
+    return ioctl_func(file_entry->mount_point->mount_context, file_entry->fs_file, command, arg);
 }
 
+/**
+ * @brief Synchronize a DMVFS file (flush to disk)
+ *
+ * @param fp Pointer to the file handle
+ * @return 0 on success, -1 on error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _sync, (void* fp))
 {
-    // TODO: Implement file sync
-    return -1;
+    if (!is_initialized() || fp == NULL)
+        return -1;
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+        return -1;
+    dmod_dmfsi_sync_t sync_func = (dmod_dmfsi_sync_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_sync_sig);
+    if (!sync_func)
+        return -1;
+    return sync_func(file_entry->mount_point->mount_context, file_entry->fs_file);
 }
 
-DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _stat, (const char* path, dmod_fsi_stat_t* stat))
+/**
+ * @brief Get file status information in DMVFS
+ *
+ * @param path Path to the file
+ * @param stat Pointer to stat structure to fill
+ * @return 0 on success, -1 on error
+ */
+DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _stat, (const char* path, dmfsi_stat_t* stat))
 {
-    // TODO: Implement file stat
-    return -1;
+    if (!is_initialized() || path == NULL || stat == NULL)
+        return -1;
+    const char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+        return -1;
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+    dmod_dmfsi_stat_t stat_func = (dmod_dmfsi_stat_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_stat_sig);
+    int result = -1;
+    if (stat_func)
+        result = stat_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), stat);
+    Dmod_Free((void*)abs_path);
+    return result;
 }
 
+/**
+ * @brief Read a character from a DMVFS file
+ *
+ * @param fp Pointer to the file handle
+ * @return Character read, or -1 on error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getc, (void* fp))
 {
-    // TODO: Implement character read
-    return -1;
+    if (!is_initialized() || fp == NULL)
+        return -1;
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+        return -1;
+    dmod_dmfsi_getc_t getc_func = (dmod_dmfsi_getc_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_getc_sig);
+    if (!getc_func)
+        return -1;
+    return getc_func(file_entry->mount_point->mount_context, file_entry->fs_file);
 }
 
+/**
+ * @brief Write a character to a DMVFS file
+ *
+ * @param fp Pointer to the file handle
+ * @param c Character to write
+ * @return Character written, or -1 on error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _putc, (void* fp, int c))
 {
-    // TODO: Implement character write
-    return -1;
+    if (!is_initialized() || fp == NULL)
+        return -1;
+    file_t* file_entry = (file_t*)fp;
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+        return -1;
+    dmod_dmfsi_putc_t putc_func = (dmod_dmfsi_putc_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_putc_sig);
+    if (!putc_func)
+        return -1;
+    return putc_func(file_entry->mount_point->mount_context, file_entry->fs_file, c);
 }
 
+/**
+ * @brief Change the permissions of a file in DMVFS
+ *
+ * This function changes the permissions of a file at the specified path.
+ * It resolves the mount point for the file and invokes the file system's chmod function.
+ *
+ * @param path Path to the file
+ * @param mode New permissions mode
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chmod, (const char* path, int mode))
 {
-    // TODO: Implement chmod
-    return -1;
-}
+    if (!is_initialized() || path == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        return -1;
+    }
 
+    const char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+    {
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        return -1;
+    }
+
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    dmod_dmfsi_chmod_t chmod_func = (dmod_dmfsi_chmod_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_chmod_sig);
+
+    if (!chmod_func)
+    {
+        DMOD_LOG_ERROR("File system does not support chmod for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    int result = chmod_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), mode);
+    Dmod_Free((void*)abs_path);
+
+    if (result != 0)
+    {
+        DMOD_LOG_ERROR("Failed to change permissions for '%s'", path);
+        return -1;
+    }
+
+    DMOD_LOG_INFO("Permissions for '%s' changed successfully", path);
+    return 0;
+}
+/**
+ * @brief Update the access and modification times of a file in DMVFS
+ *
+ * This function updates the access and modification times of a file
+ * at the specified path. It resolves the mount point for the file
+ * and invokes the file system's utime function.
+ *
+ * @param path Path to the file
+ * @param atime New access time (UNIX timestamp)
+ * @param mtime New modification time (UNIX timestamp)
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _utime, (const char* path, uint32_t atime, uint32_t mtime))
 {
-    // TODO: Implement utime
-    return -1;
+    if (!is_initialized() || path == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        return -1;
+    }
+
+    const char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+    {
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        return -1;
+    }
+
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    dmod_dmfsi_utime_t utime_func = (dmod_dmfsi_utime_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_utime_sig);
+
+    if (!utime_func)
+    {
+        DMOD_LOG_ERROR("File system does not support utime for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    int result = utime_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), atime, mtime);
+    Dmod_Free((void*)abs_path);
+
+    if (result != 0)
+    {
+        DMOD_LOG_ERROR("Failed to update times for '%s'", path);
+        return -1;
+    }
+
+    DMOD_LOG_INFO("Times for '%s' updated successfully", path);
+    return 0;
 }
 
+/**
+ * @brief Remove a file in DMVFS
+ *
+ * This function removes a file at the specified path. It resolves the
+ * mount point for the file and invokes the file system's unlink function.
+ *
+ * @param path Path to the file
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _unlink, (const char* path))
 {
-    // TODO: Implement unlink
-    return -1;
+    if (!is_initialized() || path == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        return -1;
+    }
+
+    const char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+    {
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        return -1;
+    }
+
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    dmod_dmfsi_unlink_t unlink_func = (dmod_dmfsi_unlink_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_unlink_sig);
+
+    if (!unlink_func)
+    {
+        DMOD_LOG_ERROR("File system does not support unlink for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    int result = unlink_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point));
+    Dmod_Free((void*)abs_path);
+
+    if (result != 0)
+    {
+        DMOD_LOG_ERROR("Failed to remove file '%s'", path);
+        return -1;
+    }
+
+    DMOD_LOG_INFO("File '%s' removed successfully", path);
+    return 0;
 }
 
-// Directory operations
+/**
+ * @brief Create a directory in DMVFS
+ *
+ * This function creates a directory at the specified path with the given mode.
+ * It resolves the mount point for the directory and invokes the file system's mkdir function.
+ *
+ * @param path Path to the directory
+ * @param mode Permissions mode for the new directory
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _mkdir, (const char* path, int mode))
 {
-    // TODO: Implement mkdir
-    return -1;
-}
+    if (!is_initialized() || path == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        return -1;
+    }
 
+    const char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+    {
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        return -1;
+    }
+
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    dmod_dmfsi_mkdir_t mkdir_func = (dmod_dmfsi_mkdir_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_mkdir_sig);
+
+    if (!mkdir_func)
+    {
+        DMOD_LOG_ERROR("File system does not support mkdir for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    int result = mkdir_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), mode);
+    Dmod_Free((void*)abs_path);
+
+    if (result != 0)
+    {
+        DMOD_LOG_ERROR("Failed to create directory '%s'", path);
+        return -1;
+    }
+
+    DMOD_LOG_INFO("Directory '%s' created successfully", path);
+    return 0;
+}
+/**
+ * @brief Remove a directory in DMVFS
+ *
+ * This function removes a directory at the specified path. It resolves the
+ * mount point for the directory and invokes the file system's rmdir function.
+ *
+ * @param path Path to the directory
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rmdir, (const char* path))
 {
-    // TODO: Implement rmdir
-    return -1;
+    if (!is_initialized() || path == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        return -1;
+    }
+
+    const char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+    {
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        return -1;
+    }
+
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    dmod_dmfsi_unlink_t rmdir_func = (dmod_dmfsi_unlink_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_unlink_sig);
+
+    if (!rmdir_func)
+    {
+        DMOD_LOG_ERROR("File system does not support rmdir for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    int result = rmdir_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point));
+    Dmod_Free((void*)abs_path);
+
+    if (result != 0)
+    {
+        DMOD_LOG_ERROR("Failed to remove directory '%s'", path);
+        return -1;
+    }
+
+    DMOD_LOG_INFO("Directory '%s' removed successfully", path);
+    return 0;
 }
 
+/**
+ * @brief Change the current working directory in DMVFS
+ *
+ * This function changes the current working directory to the specified path.
+ * It resolves the mount point for the directory and verifies its existence.
+ *
+ * @param path Path to the new working directory
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chdir, (const char* path))
 {
-    // TODO: Implement chdir
-    return -1;
+    if (!is_initialized() || path == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        return -1;
+    }
+
+    const char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+    {
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        return -1;
+    }
+
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    dmod_dmfsi_direxists_t direxists_func = (dmod_dmfsi_direxists_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_direxists_sig);
+
+    if (!direxists_func || !direxists_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point)))
+    {
+        DMOD_LOG_ERROR("Directory '%s' does not exist", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    g_cwd = update_string(g_cwd, abs_path);
+    Dmod_Free((void*)abs_path);
+
+    if (!g_cwd)
+    {
+        DMOD_LOG_ERROR("Failed to update current working directory");
+        return -1;
+    }
+
+    DMOD_LOG_INFO("Current working directory changed to '%s'", g_cwd);
+    return 0;
 }
 
+/**
+ * @brief Open a directory in DMVFS
+ *
+ * This function opens a directory at the specified path and returns a directory
+ * handle that can be used for reading directory entries.
+ *
+ * @param dp Pointer to store the directory handle
+ * @param path Path to the directory
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* path))
 {
-    // TODO: Implement opendir
-    if (dp) *dp = NULL;
-    return -1;
-}
+    if (!is_initialized() || dp == NULL || path == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _opendir");
+        return -1;
+    }
 
-DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmod_fsi_dir_entry_t* entry))
+    const char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+    {
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        return -1;
+    }
+
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    dmod_dmfsi_opendir_t opendir_func = (dmod_dmfsi_opendir_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_opendir_sig);
+
+    if (!opendir_func)
+    {
+        DMOD_LOG_ERROR("File system does not support opendir for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    void* dir_handle = NULL;
+    int result = opendir_func(mp_entry->mount_context, &dir_handle, abs_path + strlen(mp_entry->mount_point));
+    Dmod_Free((void*)abs_path);
+
+    if (result != 0 || dir_handle == NULL)
+    {
+        DMOD_LOG_ERROR("Failed to open directory '%s'", path);
+        return -1;
+    }
+
+    *dp = dir_handle;
+    DMOD_LOG_INFO("Directory '%s' opened successfully", path);
+    return 0;
+}
+/**
+ * @brief Read the next directory entry in DMVFS
+ *
+ * This function reads the next directory entry from an open directory handle.
+ * It invokes the file system's readdir function to retrieve the directory entry.
+ *
+ * @param dp Pointer to the directory handle
+ * @param entry Pointer to a structure to store the directory entry
+ * @return 0 on success, -1 on failure or end of directory
+ */
+DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmfsi_dir_entry_t* entry))
 {
-    // TODO: Implement readdir
-    return -1;
+    if (!is_initialized() || dp == NULL || entry == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _readdir");
+        return -1;
+    }
+
+    file_t* dir_entry = (file_t*)dp;
+
+    if (dir_entry->mount_point == NULL || dir_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid directory handle");
+        return -1;
+    }
+
+    dmod_dmfsi_readdir_t readdir_func = (dmod_dmfsi_readdir_t)Dmod_GetDifFunction(
+        dir_entry->mount_point->fs_context, dmod_dmfsi_readdir_sig);
+
+    if (!readdir_func)
+    {
+        DMOD_LOG_ERROR("File system does not support readdir");
+        return -1;
+    }
+
+    int result = readdir_func(dir_entry->mount_point->mount_context, dir_entry->fs_file, entry);
+
+    if (result != 0)
+    {
+        DMOD_LOG_VERBOSE("End of directory or error reading directory");
+        return -1;
+    }
+
+    return 0;
 }
 
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
