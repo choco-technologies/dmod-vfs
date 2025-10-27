@@ -10,6 +10,7 @@ typedef struct {
 typedef struct {
     mount_point_t* mount_point;
     void* fs_file;
+    int pid;
 } file_t;
 
 static mount_point_t* g_mount_points = NULL;
@@ -596,24 +597,225 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _unmount_fs, (const char* mount_poi
     return true;
 }
 
-// File operations
+/**
+ * @brief Open a file in the DMVFS
+ * 
+ * This function opens a file at the specified path with the given mode and attributes.
+ * It resolves the mount point for the file, invokes the file system's open function,
+ * and registers the file in the DMVFS open file table.
+ * 
+ * @param fp Pointer to store the file handle
+ * @param path Path to the file to open
+ * @param mode File open mode (e.g., read, write)
+ * @param attr File attributes
+ * @param pid Process ID of the caller
+ * 
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path, int mode, int attr, int pid))
 {
-    // TODO: Implement file open
-    if (fp) *fp = NULL;
-    return -1;
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return -1;
+    }
+
+    if (fp == NULL || path == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid arguments to _fopen");
+        return -1;
+    }
+
+    if (Dmod_Mutex_Lock(g_mutex) != 0)
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        return -1;
+    }
+
+    const char* abs_path = to_absolute_path(path);
+    if (abs_path == NULL)
+    {
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        Dmod_Mutex_Unlock(g_mutex);
+        return -1;
+    }
+
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (mp_entry == NULL)
+    {
+        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        Dmod_Mutex_Unlock(g_mutex);
+        return -1;
+    }
+
+    dmod_dmfsi_fopen_t fopen_func = (dmod_dmfsi_fopen_t)Dmod_GetDifFunction(mp_entry->fs_context, dmod_dmfsi_fopen_sig);
+    if (fopen_func == NULL)
+    {
+        DMOD_LOG_ERROR("File system does not support fopen for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        Dmod_Mutex_Unlock(g_mutex);
+        return -1;
+    }
+
+    void* fs_file = fopen_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), mode, attr, pid);
+    Dmod_Free((void*)abs_path);
+
+    if (fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Failed to open file '%s'", path);
+        Dmod_Mutex_Unlock(g_mutex);
+        return -1;
+    }
+
+    file_t* free_entry = find_free_file_entry();
+    if (free_entry == NULL)
+    {
+        DMOD_LOG_ERROR("No free file entries available");
+        Dmod_Mutex_Unlock(g_mutex);
+        return -1;
+    }
+
+    free_entry->mount_point = mp_entry;
+    free_entry->fs_file = fs_file;
+    free_entry->pid = pid;
+    *fp = free_entry;
+
+    Dmod_Mutex_Unlock(g_mutex);
+    DMOD_LOG_INFO("File '%s' opened successfully", path);
+    return 0;
 }
 
+/**
+ * @brief Close an open file in the DMVFS
+ * 
+ * This function closes a file that was previously opened in the DMVFS.
+ * It invokes the file system's close function and removes the file
+ * from the DMVFS open file table.
+ * 
+ * @param fp Pointer to the file handle to close
+ * 
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
 {
-    // TODO: Implement file close
-    return -1;
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return -1;
+    }
+
+    if (fp == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file pointer");
+        return -1;
+    }
+
+    file_t* file_entry = (file_t*)fp;
+
+    if (Dmod_Mutex_Lock(g_mutex) != 0)
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        return -1;
+    }
+
+    if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file entry");
+        Dmod_Mutex_Unlock(g_mutex);
+        return -1;
+    }
+
+    dmod_dmfsi_fclose_t fclose_func = (dmod_dmfsi_fclose_t)Dmod_GetDifFunction(
+        file_entry->mount_point->fs_context, dmod_dmfsi_fclose_sig);
+
+    if (fclose_func == NULL)
+    {
+        DMOD_LOG_ERROR("File system does not support fclose");
+        file_entry->mount_point = NULL;
+        file_entry->fs_file = NULL;
+        Dmod_Mutex_Unlock(g_mutex);
+        return -1;
+    }
+
+    if (!fclose_func(file_entry->mount_point->mount_context, file_entry->fs_file))
+    {
+        DMOD_LOG_ERROR("Failed to close file");
+        file_entry->mount_point = NULL;
+        file_entry->fs_file = NULL;
+        Dmod_Mutex_Unlock(g_mutex);
+        return -1;
+    }
+
+    file_entry->mount_point = NULL;
+    file_entry->fs_file = NULL;
+
+    Dmod_Mutex_Unlock(g_mutex);
+    DMOD_LOG_INFO("File closed successfully");
+    return 0;
 }
 
+/**
+ * @brief Close all open files for a given process ID
+ * 
+ * This function iterates through the open file table and closes all files
+ * associated with the specified process ID. It invokes the file system's
+ * close function for each file and removes the file from the DMVFS open file table.
+ * 
+ * @param pid Process ID whose files should be closed
+ * 
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose_process, (int pid))
 {
-    // TODO: Implement process file close
-    return -1;
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized");
+        return -1;
+    }
+
+    if (Dmod_Mutex_Lock(g_mutex) != 0)
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex");
+        return -1;
+    }
+
+    bool success = true;
+
+    for (int i = 0; i < g_max_open_files; i++)
+    {
+        if (g_open_files[i].pid == pid && g_open_files[i].mount_point != NULL)
+        {
+            dmod_dmfsi_fclose_t fclose_func = (dmod_dmfsi_fclose_t)Dmod_GetDifFunction(
+                g_open_files[i].mount_point->fs_context, dmod_dmfsi_fclose_sig);
+
+            if (fclose_func != NULL)
+            {
+                if (!fclose_func(g_open_files[i].mount_point->mount_context, g_open_files[i].fs_file))
+                {
+                    DMOD_LOG_ERROR("Failed to close file for process ID %d", pid);
+                    success = false;
+                }
+            }
+
+            g_open_files[i].mount_point = NULL;
+            g_open_files[i].fs_file = NULL;
+            g_open_files[i].pid = 0;
+        }
+    }
+
+    Dmod_Mutex_Unlock(g_mutex);
+
+    if (success)
+    {
+        DMOD_LOG_INFO("All files for process ID %d closed successfully", pid);
+        return 0;
+    }
+    else
+    {
+        DMOD_LOG_ERROR("Failed to close some files for process ID %d", pid);
+        return -1;
+    }
 }
 
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t size, size_t* read_bytes))
