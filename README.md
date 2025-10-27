@@ -14,13 +14,15 @@ make
 
 ## Testing
 
-The project includes a comprehensive test suite covering all interface functions. To build and run tests:
+The project includes a comprehensive test suite covering all interface functions. Tests are built by default. To build and run tests:
 
 ```bash
 cd build
-cmake -DBUILD_TESTS=ON ..
+cmake ..
 make
 ctest --output-on-failure
 ```
+
+To disable tests, use `-DBUILD_TESTS=OFF` when running cmake.
 
 See [tests/README.md](tests/README.md) for detailed information about the test suite.
