@@ -1,0 +1,2 @@
+/usr/bin/ar qc libdmfsi.a CMakeFiles/dmfsi.dir/src/dmfsi.c.o
+/usr/bin/ranlib libdmfsi.a
