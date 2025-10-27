@@ -2,6 +2,7 @@
 #include <string.h>
 #include "dmod.h"
 #include "dmvfs.h"
+#include "test_framework.h"
 
 // -----------------------------------------
 //
@@ -10,7 +11,11 @@
 // -----------------------------------------
 void PrintUsage( const char* AppName )
 {
-    printf("Usage: %s path/to/file.dmf\n", AppName);
+    printf("Usage: %s path/to/ramfs.dmf\n", AppName);
+    printf("Run DMVFS API tests with the specified ramfs module\n");
+    printf("Options:\n");
+    printf("  -h, --help     Print help message\n");
+    printf("  -v, --version  Print version information\n");
 }
 
 // -----------------------------------------
@@ -21,12 +26,47 @@ void PrintUsage( const char* AppName )
 void PrintHelp( const char* AppName )
 {
     printf("-- Dynamic Module Loader ver. " DMOD_VERSION_STRING " --\n\n");
-    printf("The DMOD is a dynamic module loader that allows to load and unload modules\n");
-    printf("This is an example application that uses the DMOD system\n\n");
-    printf("Usage: %s path/to/file.dmf\n", AppName);
-    printf("Options:\n");
-    printf("  -h, --help     Print this help message\n");
-    printf("  -v, --version  Print version information\n");
+    printf("DMVFS API Test Suite\n");
+    printf("This application tests the DMOD Virtual File System API\n");
+    printf("using a ramfs module loaded at runtime.\n\n");
+    PrintUsage( AppName );
+}
+
+// -----------------------------------------
+//
+//      Run all test suites
+//
+// -----------------------------------------
+void RunAllTests(void)
+{
+    // Initialize test framework
+    test_framework_init();
+    
+    printf("\n");
+    printf("=========================================\n");
+    printf("  DMVFS API Test Suite\n");
+    printf("=========================================\n");
+    
+    // Run file operation tests
+    printf("\n--- FILE OPERATION TESTS ---\n");
+    for (int i = 0; file_operation_tests[i].name != NULL; i++) {
+        file_operation_tests[i].function();
+    }
+    
+    // Run directory operation tests
+    printf("\n--- DIRECTORY OPERATION TESTS ---\n");
+    for (int i = 0; directory_operation_tests[i].name != NULL; i++) {
+        directory_operation_tests[i].function();
+    }
+    
+    // Run path operation tests
+    printf("\n--- PATH OPERATION TESTS ---\n");
+    for (int i = 0; path_operation_tests[i].name != NULL; i++) {
+        path_operation_tests[i].function();
+    }
+    
+    // Print summary
+    test_framework_print_summary();
 }
 
 // -----------------------------------------
@@ -36,12 +76,14 @@ void PrintHelp( const char* AppName )
 // -----------------------------------------
 int main( int argc, char *argv[] )
 {
+    // Check for minimum arguments
     if( argc < 2 )
     {
         PrintUsage( argv[0] );
         return 0;
     }
-
+    
+    // Help and version options
     if( strcmp( argv[1], "-h" ) == 0 || strcmp( argv[1], "--help" ) == 0 )
     {
         PrintHelp( argv[0] );
@@ -54,6 +96,10 @@ int main( int argc, char *argv[] )
         return 0;
     }
 
+    printf("DMVFS Test Suite\n");
+    printf("================\n\n");
+
+    // Load ramfs module from file
     Dmod_Context_t* context = Dmod_LoadFile( argv[1] );
     if( context == NULL )
     {
@@ -70,6 +116,7 @@ int main( int argc, char *argv[] )
 
     printf("Module '%s' loaded and enabled successfully.\n", Dmod_GetName( context ));
 
+    // Initialize DMVFS
     if (!dmvfs_init( 16, 32 ))
     {
         printf("Cannot initialize DMVFS\n");
@@ -87,16 +134,19 @@ int main( int argc, char *argv[] )
 
     printf("ramfs mounted at /mnt successfully.\n");
 
+    // Run all tests
+    RunAllTests();
+
     // Cleanup
     if(!dmvfs_unmount_fs( "/mnt" ))
     {
         printf("Cannot unmount /mnt\n");
     }
 
-    printf("Unmounted /mnt successfully.\nDeinitializing DMVFS...\n");
+    printf("\nUnmounted /mnt successfully.\nDeinitializing DMVFS...\n");
 
     dmvfs_deinit();
 
-    return 0;
+    return (g_test_stats.failed == 0) ? 0 : 1;
 }
 

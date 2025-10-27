@@ -7,13 +7,19 @@ project(dmvfs_example VERSION 1.0 DESCRIPTION "DMOD VFS Example" LANGUAGES C)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Add the executable
-add_executable(${PROJECT_NAME} main.c)
+# Add the executable with all test files
+add_executable(${PROJECT_NAME} 
+    main.c
+    test_framework.c
+    test_file_operations.c
+    test_directory_operations.c
+    test_path_operations.c
+)
 
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR})
 
-# Link libraries (if any)
+# Link libraries
 target_link_libraries(${PROJECT_NAME} dmod dmvfs)
 
 target_link_options(${PROJECT_NAME} PRIVATE -L ${DMOD_DIR}/scripts)
