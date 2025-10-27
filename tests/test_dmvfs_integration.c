@@ -3,6 +3,9 @@
 #include "dmod.h"
 #include <string.h>
 
+// Global context for the loaded ramfs module
+static Dmod_Context_t* ramfs_context = NULL;
+
 // Test initialization and deinitialization
 void test_dmvfs_init_deinit(void)
 {
@@ -268,20 +271,36 @@ void test_file_remove(void)
     dmvfs_deinit();
 }
 
-int main(void)
+int main(int argc, char* argv[])
 {
     printf("========================================\n");
     printf("DMVFS Integration Tests with RamFS\n");
     printf("========================================\n");
     
-    // In SYSTEM mode, modules are statically linked
-    // Call dmod_init for ramfs to ensure it's initialized
-    extern int dmod_init(const Dmod_Config_t* config);
-    Dmod_Config_t config = {0};
-    if (dmod_init(&config) != 0) {
-        printf("Warning: RamFS initialization returned non-zero\n");
+    if (argc < 2) {
+        printf("Usage: %s <path/to/ramfs.dmf>\n", argv[0]);
+        return 1;
     }
     
+    // Load the ramfs module dynamically
+    printf("Loading ramfs module from: %s\n", argv[1]);
+    ramfs_context = Dmod_LoadFile(argv[1]);
+    if (ramfs_context == NULL) {
+        printf("Failed to load ramfs module from %s\n", argv[1]);
+        return 1;
+    }
+    printf("RamFS module loaded successfully\n");
+    
+    // Enable the ramfs module
+    printf("Enabling ramfs module...\n");
+    if (!Dmod_Enable(ramfs_context, false, NULL)) {
+        printf("Failed to enable ramfs module\n");
+        Dmod_Unload(ramfs_context, false);
+        return 1;
+    }
+    printf("RamFS module enabled successfully\n");
+    
+    // Now run the tests
     RUN_TEST(test_dmvfs_init_deinit);
     RUN_TEST(test_mount_ramfs);
     RUN_TEST(test_file_create_write);
@@ -294,9 +313,10 @@ int main(void)
     
     TEST_SUMMARY();
     
-    // Cleanup
-    extern int dmod_deinit(void);
-    dmod_deinit();
+    // Disable and unload the ramfs module
+    printf("\nCleaning up...\n");
+    Dmod_Disable(ramfs_context, false);
+    Dmod_Unload(ramfs_context, false);
     
     return TEST_RETURN_CODE();
 }

@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.18)
+
+# This is a wrapper CMakeLists to build ramfs from dmfsi examples in MODULE mode
+# Set required DMOD variables
+set(DMOD_DIR "@DMOD_DIR@" CACHE PATH "DMOD source directory")
+set(DMOD_MODE "DMOD_MODULE" CACHE STRING "DMOD build mode" FORCE)
+set(DMOD_BUILD_DIR "${CMAKE_CURRENT_BINARY_DIR}" CACHE PATH "DMOD build directory")
+
+# Include DMOD paths
+include(${DMOD_DIR}/paths.cmake)
+
+# Set up the external module (this defines dmod_add_library and other functions)
+project(ramfs_wrapper)
+dmod_setup_external_module()
+
+# Add dmfsi include directories so ramfs can find dmfsi.h and dmfsi_defs.h
+include_directories("@DMFSI_SOURCE_DIR@/inc")
+include_directories("@DMFSI_BUILD_DIR@")
+
+# Create a dummy dmfsi_if interface library for ramfs to link against
+add_library(dmfsi_if INTERFACE)
+target_include_directories(dmfsi_if INTERFACE 
+    "@DMFSI_SOURCE_DIR@/inc"
+    "@DMFSI_BUILD_DIR@"
+)
+
+# Add the ramfs source directory from dmfsi
+add_subdirectory("@DMFSI_RAMFS_DIR@" "${CMAKE_CURRENT_BINARY_DIR}/ramfs")
