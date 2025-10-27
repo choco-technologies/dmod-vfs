@@ -70,7 +70,7 @@ static char* update_string(const char* old_str, const char* new_str)
  * @param path Input path
  * @return Pointer to absolute path, or NULL on failure
  */
-static const char* to_absolute_path(const char* path)
+static char* to_absolute_path(const char* path)
 {
     if(path == NULL)
     {
@@ -1705,30 +1705,154 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmfsi_dir_entry
 
     return 0;
 }
-
+/**
+ * @brief Close an open directory in DMVFS
+ *
+ * This function closes a directory that was previously opened in DMVFS.
+ * It invokes the file system's closedir function and releases the directory handle.
+ *
+ * @param dp Pointer to the directory handle
+ * @return 0 on success, -1 on failure
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
 {
-    // TODO: Implement closedir
-    return -1;
-}
+    if (!is_initialized() || dp == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid directory handle");
+        return -1;
+    }
 
+    file_t* dir_entry = (file_t*)dp;
+
+    if (dir_entry->mount_point == NULL || dir_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid directory handle");
+        return -1;
+    }
+
+    dmod_dmfsi_closedir_t closedir_func = (dmod_dmfsi_closedir_t)Dmod_GetDifFunction(
+        dir_entry->mount_point->fs_context, dmod_dmfsi_closedir_sig);
+
+    if (!closedir_func)
+    {
+        DMOD_LOG_ERROR("File system does not support closedir");
+        return -1;
+    }
+
+    int result = closedir_func(dir_entry->mount_point->mount_context, dir_entry->fs_file);
+
+    if (result != 0)
+    {
+        DMOD_LOG_ERROR("Failed to close directory");
+        return -1;
+    }
+
+    dir_entry->mount_point = NULL;
+    dir_entry->fs_file = NULL;
+
+    DMOD_LOG_INFO("Directory closed successfully");
+    return 0;
+}
+/**
+ * @brief Check if a directory exists in DMVFS
+ *
+ * This function checks if a directory exists at the specified path.
+ * It resolves the mount point for the directory and invokes the file system's direxists function.
+ *
+ * @param path Path to the directory
+ * @return 1 if the directory exists, 0 if it does not exist, -1 on error
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _direxists, (const char* path))
 {
-    // TODO: Implement directory existence check
+    if (!is_initialized() || path == NULL)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or path is NULL");
+        return -1;
+    }
+
+    char* abs_path = to_absolute_path(path);
+    if (!abs_path)
+    {
+        DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'", path);
+        return -1;
+    }
+
+    mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+    if (!mp_entry)
+    {
+        DMOD_LOG_ERROR("No mount point found for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    dmod_dmfsi_direxists_t direxists_func = (dmod_dmfsi_direxists_t)Dmod_GetDifFunction(
+        mp_entry->fs_context, dmod_dmfsi_direxists_sig);
+
+    if (!direxists_func)
+    {
+        DMOD_LOG_ERROR("File system does not support direxists for path '%s'", abs_path);
+        Dmod_Free((void*)abs_path);
+        return -1;
+    }
+
+    int result = direxists_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point));
+    Dmod_Free((void*)abs_path);
+
+    return result;
+}
+
+/**
+ * @brief Get the current working directory in DMVFS
+ *
+ * This function retrieves the current working directory and copies it to the provided buffer.
+ *
+ * @param buffer Buffer to store the current working directory
+ * @param size Size of the buffer
+ * @return 0 on success, -1 on failure (e.g., buffer too small or DMVFS not initialized)
+ */
+DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getcwd, (char* buffer, size_t size))
+{
+    if (!is_initialized() || buffer == NULL || size == 0)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _getcwd");
+        return -1;
+    }
+
+    if (strlen(g_cwd) + 1 > size)
+    {
+        DMOD_LOG_ERROR("Buffer too small for current working directory");
+        return -1;
+    }
+
+    strcpy(buffer, g_cwd);
     return 0;
 }
 
-// Current working directory
-DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getcwd, (char* buffer, size_t size))
-{
-    // TODO: Implement getcwd
-    return -1;
-}
-
+/**
+ * @brief Get the current process working directory in DMVFS
+ *
+ * This function retrieves the current process working directory (PWD) and copies it to the provided buffer.
+ *
+ * @param buffer Buffer to store the current process working directory
+ * @param size Size of the buffer
+ * @return 0 on success, -1 on failure (e.g., buffer too small or DMVFS not initialized)
+ */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getpwd, (char* buffer, size_t size))
 {
-    // TODO: Implement getpwd
-    return -1;
+    if (!is_initialized() || buffer == NULL || size == 0)
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized or invalid arguments to _getpwd");
+        return -1;
+    }
+
+    if (strlen(g_pwd) + 1 > size)
+    {
+        DMOD_LOG_ERROR("Buffer too small for process working directory");
+        return -1;
+    }
+
+    strcpy(buffer, g_pwd);
+    return 0;
 }
 
 /**
