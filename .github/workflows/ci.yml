@@ -5,6 +5,7 @@ on:
     branches:
       - develop
       - 'feature/**'
+      - 'copilot/**'
 
 jobs:
   build:
@@ -31,6 +32,25 @@ jobs:
         run: |
           cd build
           cmake --build .
+
+      - name: Build dmfsi modules for testing
+        run: |
+          cd build
+          mkdir -p _deps/dmfsi-src/build
+          cd _deps/dmfsi-src/build
+          cmake .. -DDMOD_MODE=DMOD_MODULE -DDMOD_DIR=$(pwd)/../../dmod-src
+          cmake --build .
+
+      - name: Run tests
+        run: |
+          cd build
+          if [ -f tests/dmvfs_example ] && [ -x tests/dmvfs_example ]; then
+            echo "Running dmvfs_example test..."
+            ./tests/dmvfs_example ./_deps/dmfsi-src/build/dmf/ramfs.dmf
+          else
+            echo "Test executable tests/dmvfs_example not found, skipping tests"
+            echo "Note: Tests will be run once test executables are added"
+          fi
 
       - name: Build summary
         run: |
