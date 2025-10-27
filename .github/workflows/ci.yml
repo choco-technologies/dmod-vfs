@@ -1,0 +1,36 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - develop
+      - 'feature/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake build-essential
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake ..
+
+      - name: Build project
+        run: |
+          cd build
+          cmake --build .
+
+      - name: Build summary
+        run: |
+          echo "Build completed successfully!"
+          ls -lh build/libdmvfs.a
