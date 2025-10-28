@@ -755,7 +755,7 @@ int main( int argc, char *argv[] )
     }
 
     printf("Filesystem mounted at /mnt successfully.\n");
-    
+
     if (read_only_mode) {
         printf("Testing in READ-ONLY mode\n");
         if (test_file_path) {
@@ -764,6 +764,26 @@ int main( int argc, char *argv[] )
         if (test_dir_path) {
             printf("  Test directory: %s\n", test_dir_path);
         }
+    }
+
+    // Listing root directory files in the mounted filesystem
+    printf("\nListing files in /mnt before tests:\n");
+    void* dp = NULL;
+    if (dmvfs_opendir(&dp, "/mnt/") == DMFSI_OK && dp != NULL) {
+        dmfsi_dir_entry_t entry;
+        int count = 0;
+        while (dmvfs_readdir(dp, &entry) == DMFSI_OK) {
+            printf("  - %s (size: %lu bytes)\n", entry.name, (unsigned long)entry.size);
+            count++;
+        }
+        if (count == 0) {
+            printf("  (empty directory)\n");
+        } else {
+            printf("Total entries: %d\n", count);
+        }
+        dmvfs_closedir(dp);
+    } else {
+        printf("  (cannot list files in /mnt)\n");
     }
 
     // Run test suite

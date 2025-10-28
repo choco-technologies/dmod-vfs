@@ -1658,7 +1658,16 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
         return -1;
     }
 
-    *dp = dir_handle;
+    file_t* free_entry = find_free_file_entry();
+    if (free_entry == NULL) {
+        DMOD_LOG_ERROR("No free file entries available for directory\n");
+        return -1;
+    }
+    free_entry->mount_point = mp_entry;
+    free_entry->fs_file = dir_handle;
+    free_entry->pid = 0; 
+
+    *dp = free_entry;
     DMOD_LOG_INFO("Directory '%s' opened successfully\n", path);
     return 0;
 }
