@@ -20,7 +20,7 @@ include $(DMOD_TOOLS)
 # -----------------------------------------------------------------------------
 # 	Project's definitions
 # -----------------------------------------------------------------------------
-PROJECT_NAME    = dmod_loader
+PROJECT_NAME    = fs_tester
 OUTPUT_DIR		= $(DMOD_BUILD_DIR)/examples/system
 DMOD_SOURCES	= main.c
 DMOD_INC_DIRS 	= $(DMOD_INC_DIR) \

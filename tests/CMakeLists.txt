@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Set the project name
-project(dmvfs_example VERSION 1.0 DESCRIPTION "DMOD VFS Example" LANGUAGES C)
+project(fs_tester VERSION 1.0 DESCRIPTION "DMOD File System tester application" LANGUAGES C)
 
 # Specify the C++ standard
 set(CMAKE_CXX_STANDARD 11)
