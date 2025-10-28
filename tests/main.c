@@ -77,11 +77,11 @@ int main( int argc, char *argv[] )
         return -1;
     }
 
-    printf("DMVFS initialized successfully.\nMounting ramfs at /mnt...\n");
+    printf("DMVFS initialized successfully.\nMounting %s at /mnt...\n", module_name);
 
     if(!dmvfs_mount_fs( module_name, "/mnt", NULL ))
     {
-        printf("Cannot mount ramfs at /mnt\n");
+        printf("Cannot mount %s at /mnt\n", module_name);
         dmvfs_deinit();
         return -1;
     }
