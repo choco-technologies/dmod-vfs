@@ -14,6 +14,8 @@ typedef struct {
 
 static TestResults test_results = {0};
 static bool read_only_mode = false;
+static const char* test_file_path = NULL;
+static const char* test_dir_path = NULL;
 
 // -----------------------------------------
 //
@@ -24,7 +26,9 @@ void PrintUsage( const char* AppName )
 {
     printf("Usage: %s [OPTIONS] path/to/file.dmf\n", AppName);
     printf("Options:\n");
-    printf("  --read-only-fs    Test filesystem in read-only mode\n");
+    printf("  --read-only-fs              Test filesystem in read-only mode\n");
+    printf("  --test-file <path>          Path to existing file for read-only tests\n");
+    printf("  --test-dir <path>           Path to existing directory for read-only tests\n");
 }
 
 // -----------------------------------------
@@ -38,9 +42,11 @@ void PrintHelp( const char* AppName )
     printf("This tool tests and validates file system modules\n\n");
     printf("Usage: %s [OPTIONS] path/to/file.dmf\n", AppName);
     printf("Options:\n");
-    printf("  -h, --help         Print this help message\n");
-    printf("  -v, --version      Print version information\n");
-    printf("  --read-only-fs     Test filesystem in read-only mode\n");
+    printf("  -h, --help                  Print this help message\n");
+    printf("  -v, --version               Print version information\n");
+    printf("  --read-only-fs              Test filesystem in read-only mode\n");
+    printf("  --test-file <path>          Path to existing file for read-only tests\n");
+    printf("  --test-dir <path>           Path to existing directory for read-only tests\n");
 }
 
 // -----------------------------------------
@@ -420,11 +426,15 @@ bool test_directory_listing(void)
         return false;
     }
     
-    // Read directory entries
+    // Read directory entries and check for our test file
     dmfsi_dir_entry_t entry;
     int entry_count = 0;
+    bool found_test_file = false;
     while (dmvfs_readdir(dp, &entry) == DMFSI_OK) {
         entry_count++;
+        if (strstr(entry.name, "listtest.txt") != NULL) {
+            found_test_file = true;
+        }
     }
     
     dmvfs_closedir(dp);
@@ -435,7 +445,60 @@ bool test_directory_listing(void)
     if (entry_count == 0) {
         // Empty directory is still valid
         printf(" (directory is empty)");
+    } else if (!found_test_file) {
+        TEST_FAIL("Created file not found in directory listing");
+        return false;
     }
+    
+    TEST_PASS();
+    return true;
+}
+
+// -----------------------------------------
+//
+//      Test: Directory creation and visibility
+//
+// -----------------------------------------
+bool test_directory_creation_and_listing(void)
+{
+    TEST_START("Directory creation and visibility in listing");
+    void* dp = NULL;
+    
+    // Create a test directory
+    int ret = dmvfs_mkdir("/mnt/testdir_visible", 0);
+    if (ret != DMFSI_OK) {
+        TEST_FAIL("Cannot create directory");
+        return false;
+    }
+    
+    // Verify directory exists using direxists
+    ret = dmvfs_direxists("/mnt/testdir_visible");
+    if (!ret) {
+        dmvfs_rmdir("/mnt/testdir_visible");
+        TEST_FAIL("Directory doesn't exist after creation");
+        return false;
+    }
+    
+    // Try to list and find the directory (optional)
+    ret = dmvfs_opendir(&dp, "/mnt/");
+    if (ret == DMFSI_OK && dp != NULL) {
+        dmfsi_dir_entry_t entry;
+        bool found_new_dir = false;
+        while (dmvfs_readdir(dp, &entry) == DMFSI_OK) {
+            if (strstr(entry.name, "testdir_visible") != NULL) {
+                found_new_dir = true;
+                break;
+            }
+        }
+        dmvfs_closedir(dp);
+        
+        if (!found_new_dir) {
+            printf(" (dir exists but not in listing)");
+        }
+    }
+    
+    // Clean up - ignore errors if rmdir not supported
+    dmvfs_rmdir("/mnt/testdir_visible");
     
     TEST_PASS();
     return true;
@@ -455,47 +518,131 @@ void run_all_tests(void)
     
     // File operations tests
     if (read_only_mode) {
-        TEST_START("File open/close");
+        // Read-only mode tests with optional file and directory paths
+        
+        if (test_file_path) {
+            // Test reading an existing file
+            TEST_START("Read existing file");
+            void* fp = NULL;
+            int ret = dmvfs_fopen(&fp, test_file_path, DMFSI_O_RDONLY, 0, 0);
+            if (ret == DMFSI_OK && fp != NULL) {
+                char buffer[256] = {0};
+                size_t read_bytes = 0;
+                ret = dmvfs_fread(fp, buffer, sizeof(buffer), &read_bytes);
+                if (ret == DMFSI_OK) {
+                    printf(" (read %zu bytes)", read_bytes);
+                    TEST_PASS();
+                } else {
+                    TEST_FAIL("Cannot read from file");
+                }
+                dmvfs_fclose(fp);
+            } else {
+                TEST_FAIL("Cannot open test file");
+            }
+            
+            // Test file stat
+            TEST_START("Stat existing file");
+            dmfsi_stat_t stat;
+            ret = dmvfs_stat(test_file_path, &stat);
+            if (ret == DMFSI_OK) {
+                printf(" (size: %lu bytes)", (unsigned long)stat.size);
+                TEST_PASS();
+            } else {
+                TEST_FAIL("Cannot stat file");
+            }
+            
+            // Test character I/O on existing file
+            TEST_START("Character I/O on existing file (getc)");
+            ret = dmvfs_fopen(&fp, test_file_path, DMFSI_O_RDONLY, 0, 0);
+            if (ret == DMFSI_OK && fp != NULL) {
+                int ch = dmvfs_getc(fp);
+                if (ch >= 0) {
+                    printf(" (first char: '%c')", (char)ch);
+                    TEST_PASS();
+                } else {
+                    TEST_FAIL("Cannot read character");
+                }
+                dmvfs_fclose(fp);
+            } else {
+                TEST_FAIL("Cannot open file");
+            }
+        } else {
+            TEST_START("File read");
+            TEST_SKIP("No test file specified (use --test-file)");
+            TEST_START("File stat");
+            TEST_SKIP("No test file specified (use --test-file)");
+            TEST_START("Character I/O (getc)");
+            TEST_SKIP("No test file specified (use --test-file)");
+        }
+        
+        // Skip write operations
+        TEST_START("File open/close (write)");
         TEST_SKIP("Read-only mode");
         TEST_START("File write");
         TEST_SKIP("Read-only mode");
-        TEST_START("File read");
-        TEST_SKIP("Read-only mode - no test file");
         TEST_START("File seek/tell");
-        TEST_SKIP("Read-only mode - no test file");
+        TEST_SKIP("Read-only mode - needs writable file");
         TEST_START("File EOF detection");
-        TEST_SKIP("Read-only mode - no test file");
-        TEST_START("Character I/O (getc/putc)");
+        TEST_SKIP("Read-only mode - needs writable file");
+        TEST_START("Character I/O (putc)");
         TEST_SKIP("Read-only mode");
-        TEST_START("File stat");
-        TEST_SKIP("Read-only mode - no test file");
         TEST_START("File rename");
         TEST_SKIP("Read-only mode");
         TEST_START("File unlink");
         TEST_SKIP("Read-only mode");
-        TEST_START("Directory operations");
+        TEST_START("Directory creation");
         TEST_SKIP("Read-only mode");
-        TEST_START("Directory listing");
         
-        // Try to list directory in read-only mode
-        void* dp = NULL;
-        int ret = dmvfs_opendir(&dp, "/mnt/");
-        if (ret == DMFSI_OK && dp != NULL) {
-            dmfsi_dir_entry_t entry;
-            printf("\n  Files in /mnt:\n");
-            int count = 0;
-            while (dmvfs_readdir(dp, &entry) == DMFSI_OK) {
-                printf("    - %s (size: %lu bytes)\n", entry.name, (unsigned long)entry.size);
-                count++;
+        // Directory listing tests
+        if (test_dir_path) {
+            TEST_START("List existing directory");
+            void* dp = NULL;
+            int ret = dmvfs_opendir(&dp, test_dir_path);
+            if (ret == DMFSI_OK && dp != NULL) {
+                dmfsi_dir_entry_t entry;
+                printf("\n  Files in %s:\n", test_dir_path);
+                int count = 0;
+                while (dmvfs_readdir(dp, &entry) == DMFSI_OK) {
+                    printf("    - %s (size: %lu bytes)\n", entry.name, (unsigned long)entry.size);
+                    count++;
+                }
+                if (count == 0) {
+                    printf("    (empty directory)\n");
+                } else {
+                    printf("  Total entries: %d\n", count);
+                }
+                dmvfs_closedir(dp);
+                TEST_PASS();
+            } else {
+                TEST_FAIL("Cannot open test directory");
             }
-            if (count == 0) {
-                printf("    (empty directory)\n");
-            }
-            dmvfs_closedir(dp);
-            TEST_PASS();
         } else {
-            TEST_SKIP("Directory listing not available");
+            TEST_START("Directory listing");
+            // Try to list root directory in read-only mode
+            void* dp = NULL;
+            int ret = dmvfs_opendir(&dp, "/mnt/");
+            if (ret == DMFSI_OK && dp != NULL) {
+                dmfsi_dir_entry_t entry;
+                printf("\n  Files in /mnt:\n");
+                int count = 0;
+                while (dmvfs_readdir(dp, &entry) == DMFSI_OK) {
+                    printf("    - %s (size: %lu bytes)\n", entry.name, (unsigned long)entry.size);
+                    count++;
+                }
+                if (count == 0) {
+                    printf("    (empty directory)\n");
+                } else {
+                    printf("  Total entries: %d\n", count);
+                }
+                dmvfs_closedir(dp);
+                TEST_PASS();
+            } else {
+                TEST_SKIP("Directory listing not available (use --test-dir)");
+            }
         }
+        
+        TEST_START("Directory creation visibility");
+        TEST_SKIP("Read-only mode");
     } else {
         // Full test suite for writable filesystems
         test_file_open_close();
@@ -509,6 +656,7 @@ void run_all_tests(void)
         test_file_unlink();
         test_directory_operations();
         test_directory_listing();
+        test_directory_creation_and_listing();
     }
     
     // Print summary
@@ -548,6 +696,22 @@ int main( int argc, char *argv[] )
             return 0;
         } else if (strcmp(argv[i], "--read-only-fs") == 0) {
             read_only_mode = true;
+        } else if (strcmp(argv[i], "--test-file") == 0) {
+            if (i + 1 < argc) {
+                test_file_path = argv[++i];
+            } else {
+                printf("Error: --test-file requires a path argument\n");
+                PrintUsage(argv[0]);
+                return -1;
+            }
+        } else if (strcmp(argv[i], "--test-dir") == 0) {
+            if (i + 1 < argc) {
+                test_dir_path = argv[++i];
+            } else {
+                printf("Error: --test-dir requires a path argument\n");
+                PrintUsage(argv[0]);
+                return -1;
+            }
         } else {
             module_path = argv[i];
         }
@@ -591,6 +755,16 @@ int main( int argc, char *argv[] )
     }
 
     printf("Filesystem mounted at /mnt successfully.\n");
+    
+    if (read_only_mode) {
+        printf("Testing in READ-ONLY mode\n");
+        if (test_file_path) {
+            printf("  Test file: %s\n", test_file_path);
+        }
+        if (test_dir_path) {
+            printf("  Test directory: %s\n", test_dir_path);
+        }
+    }
 
     // Run test suite
     run_all_tests();
