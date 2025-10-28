@@ -413,6 +413,8 @@ bool test_directory_listing(void)
     // Try to open the root directory of the mounted filesystem
     ret = dmvfs_opendir(&dp, "/mnt/");
     if (ret != DMFSI_OK || dp == NULL) {
+        // Clean up test file
+        dmvfs_unlink("/mnt/listtest.txt");
         // If that fails, the filesystem might not support directory listing
         TEST_SKIP("Directory listing not supported or root access needed");
         return false;
@@ -426,6 +428,9 @@ bool test_directory_listing(void)
     }
     
     dmvfs_closedir(dp);
+    
+    // Clean up test file
+    dmvfs_unlink("/mnt/listtest.txt");
     
     if (entry_count == 0) {
         // Empty directory is still valid
