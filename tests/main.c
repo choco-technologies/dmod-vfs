@@ -68,7 +68,8 @@ int main( int argc, char *argv[] )
         return -1;
     }
 
-    printf("Module '%s' loaded and enabled successfully.\n", Dmod_GetName( context ));
+    const char* module_name = Dmod_GetName( context );
+    printf("Module '%s' loaded and enabled successfully.\n", module_name);
 
     if (!dmvfs_init( 16, 32 ))
     {
@@ -78,7 +79,7 @@ int main( int argc, char *argv[] )
 
     printf("DMVFS initialized successfully.\nMounting ramfs at /mnt...\n");
 
-    if(!dmvfs_mount_fs( "ramfs", "/mnt", NULL ))
+    if(!dmvfs_mount_fs( module_name, "/mnt", NULL ))
     {
         printf("Cannot mount ramfs at /mnt\n");
         dmvfs_deinit();
