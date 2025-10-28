@@ -1,2 +1,0 @@
-/usr/bin/ar qc libdmvfs.a CMakeFiles/dmvfs.dir/src/dmvfs.c.o
-/usr/bin/ranlib libdmvfs.a
