@@ -38,16 +38,17 @@ jobs:
           cmake .. -DDMOD_MODE=DMOD_MODULE -DDMOD_DIR=$(pwd)/../../dmod-src
           cmake --build .
 
+      - name: Prepare test filesystem module
+        run: |
+          mkdir -p tests/testfs/build
+          cd tests/testfs/build
+          cmake .. -DDMOD_MODE=DMOD_MODULE -DDMOD_DIR=$(pwd)/../../../build/_deps/dmod-src
+          cmake --build .
+
       - name: Run tests
         run: |
           cd build
-          if [ -f tests/dmvfs_example ] && [ -x tests/dmvfs_example ]; then
-            echo "Running dmvfs_example test..."
-            ./tests/dmvfs_example ./_deps/dmfsi-src/build/dmf/ramfs.dmf
-          else
-            echo "Test executable tests/dmvfs_example not found, skipping tests"
-            echo "Note: Tests will be run once test executables are added"
-          fi
+          ./tests/fs_tester ../tests/testfs/build/dmf/testfs.dmf
 
       - name: Build summary
         run: |
