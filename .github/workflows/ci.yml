@@ -23,7 +23,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release ..
+          cmake -DCMAKE_BUILD_TYPE=Release .. -DMVFS_BUILD_TESTS=ON
 
       - name: Build project
         run: |
@@ -35,7 +35,7 @@ jobs:
           cd build
           mkdir -p _deps/dmfsi-src/build
           cd _deps/dmfsi-src/build
-          cmake .. -DDMOD_MODE=DMOD_MODULE -DDMOD_DIR=$(pwd)/../../dmod-src
+          cmake .. -DDMOD_MODE=DMOD_MODULE -DDMOD_DIR=$(pwd)/../../dmod-src 
           cmake --build .
 
       - name: Prepare test filesystem module

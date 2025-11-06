@@ -77,4 +77,12 @@ target_link_libraries(dmvfs PUBLIC
     dmfsi
 )
 
-add_subdirectory(tests)
+# ======================================================================
+#               Tests
+# ======================================================================
+option(DMVFS_BUILD_TESTS "Build tests" OFF)
+
+if(DMVFS_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
