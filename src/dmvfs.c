@@ -482,6 +482,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points, int m
         return false;
     }
 
+    DMOD_LOG_INFO("== dmvfs ver " DMVFS_VERSION " ==\n");
     DMOD_LOG_INFO("DMVFS initialized with max mount points: %d\n", max_mount_points);
     return true;
 }
