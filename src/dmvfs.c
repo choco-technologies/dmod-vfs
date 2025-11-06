@@ -2336,15 +2336,22 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _toabs, (const char* path, char* abs
     else
     {
         // Path is relative, prepend the current working directory
-        if (!is_initialized() || g_cwd == NULL)
+        if (!is_initialized())
         {
-            DMOD_LOG_ERROR("DMVFS is not initialized or CWD is NULL\n");
+            DMOD_LOG_ERROR("DMVFS is not initialized\n");
             return -1;
         }
 
         if(!lock_mutex())
         {
             DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+            return -1;
+        }
+
+        if (g_cwd == NULL)
+        {
+            DMOD_LOG_ERROR("CWD is NULL\n");
+            unlock_mutex();
             return -1;
         }
 
