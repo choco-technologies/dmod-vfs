@@ -5,6 +5,7 @@
 #include "dmfsi.h"
 
 DMOD_BUILTIN_API( dmvfs, 1.0, bool, _init, (int max_mount_points, int max_open_files) );
+DMOD_BUILTIN_API( dmvfs, 1.0, bool, _reinit_mutex, (void) );
 DMOD_BUILTIN_API( dmvfs, 1.0, bool, _deinit, (void) );
 DMOD_BUILTIN_API( dmvfs, 1.0, int, _get_max_mount_points, (void) );
 DMOD_BUILTIN_API( dmvfs, 1.0, int, _get_max_open_files, (void) );

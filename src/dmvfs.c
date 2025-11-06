@@ -32,6 +32,36 @@ static inline bool is_initialized(void)
 }
 
 /**
+ * @brief Lock the DMVFS mutex
+ * @return true on success, false on failure
+ */
+static inline bool lock_mutex(void)
+{
+    if(g_mutex == NULL)
+    {
+        dmvfs_reinit_mutex();
+    }
+    if(g_mutex != NULL)
+    {
+        return (Dmod_Mutex_Lock(g_mutex) == 0);
+    }
+    Dmod_EnterCritical();
+    return true;
+}
+
+/**
+ * @brief Unlock the DMVFS mutex
+ */
+static inline void unlock_mutex(void)
+{
+    if(g_mutex != NULL)
+    {
+        Dmod_Mutex_Unlock(g_mutex);
+    }
+    Dmod_ExitCritical();
+}
+
+/**
  * @brief Duplicate a string
  * @param str String to duplicate
  * @return Pointer to duplicated string, or NULL on failure
@@ -253,7 +283,7 @@ static Dmod_Context_t* find_fs_by_name(const char* fs_name)
         return NULL;
     }
 
-    if( Dmod_Mutex_Lock(g_mutex) != 0 )
+    if(!lock_mutex())
     {
         DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return NULL;
@@ -265,14 +295,14 @@ static Dmod_Context_t* find_fs_by_name(const char* fs_name)
         if(fs_context->Header != NULL && strcmp(fs_context->Header->Name, fs_name) == 0)
         {
             DMOD_LOG_VERBOSE("File system '%s' found\n", fs_name);
-            Dmod_Mutex_Unlock(g_mutex);
+            unlock_mutex();
             return fs_context;
         }
         fs_context = Dmod_GetNextDifModule(dmod_dmfsi_fopen_sig, fs_context);
     }
 
     DMOD_LOG_WARN("File system '%s' not found\n", fs_name);
-    Dmod_Mutex_Unlock(g_mutex);
+    unlock_mutex();
     return NULL;
 }
 
@@ -429,11 +459,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points, int m
     g_mutex = Dmod_Mutex_New(true);
     if (g_mutex == NULL)
     {
-        DMOD_LOG_ERROR("Failed to create mutex\n");
-        Dmod_Free(g_mount_points);
-        g_mount_points = NULL;
-        g_max_mount_points = 0;
-        return false;
+        DMOD_LOG_WARN("We could not initialize mutex - working in critical-sections mode...\n");
     }
 
     g_cwd = duplicate_string("/");
@@ -448,12 +474,49 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points, int m
         if (g_pwd) Dmod_Free((void*)g_pwd);
         g_cwd = NULL;
         g_pwd = NULL;
-        Dmod_Mutex_Delete(g_mutex);
+        if(g_mutex != NULL)
+        {
+            Dmod_Mutex_Delete(g_mutex);
+        }
         g_mutex = NULL;
         return false;
     }
 
     DMOD_LOG_INFO("DMVFS initialized with max mount points: %d\n", max_mount_points);
+    return true;
+}
+
+/**
+ * @brief Reinitialize DMVFS mutex
+ * 
+ * The function reinitializes the DMVFS mutex by destroying the old mutex
+ * and creating a new one. This is useful in scenarios where the mutex
+ * needs to be reset or recreated.
+ * 
+ * @return true on success, false on failure
+ */
+DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _reinit_mutex, (void))
+{
+    if (!is_initialized())
+    {
+        DMOD_LOG_WARN("DMVFS is not initialized\n");
+        return false;
+    }
+
+    if(g_mutex != NULL)
+    {
+        // Destroy the old mutex
+        Dmod_Mutex_Delete(g_mutex);
+    }
+
+    // Create a new mutex
+    g_mutex = Dmod_Mutex_New(true);
+    if (g_mutex == NULL)
+    {
+        return false;
+    }
+
+    DMOD_LOG_INFO("DMVFS mutex reinitialized successfully\n");
     return true;
 }
 
@@ -474,7 +537,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _deinit, (void))
         return false;
     }
 
-    if (Dmod_Mutex_Lock(g_mutex) != 0)
+    if (!lock_mutex())
     {
         DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return false;
@@ -498,8 +561,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _deinit, (void))
     g_max_mount_points = 0;
 
     // Destroy the mutex
-    Dmod_Mutex_Unlock(g_mutex);
-    Dmod_Mutex_Delete(g_mutex);
+    unlock_mutex();
+    if(g_mutex != NULL)
+    {
+        Dmod_Mutex_Delete(g_mutex);
+    }
     g_mutex = NULL;
 
     DMOD_LOG_INFO("DMVFS deinitialized successfully\n");
@@ -546,7 +612,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _mount_fs, (const char* fs_name, co
         return false;
     }
 
-    if(Dmod_Mutex_Lock(g_mutex) != 0)
+    if(!lock_mutex())
     {
         DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return false;
@@ -556,7 +622,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _mount_fs, (const char* fs_name, co
     if(fs_context == NULL)
     {
         DMOD_LOG_ERROR("Cannot mount file system '%s': Not found\n", fs_name);
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return false;
     }
 
@@ -564,11 +630,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _mount_fs, (const char* fs_name, co
     if(mp_entry == NULL)
     {
         DMOD_LOG_ERROR("Cannot mount file system '%s'\n", fs_name);
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return false;
     }
 
-    Dmod_Mutex_Unlock(g_mutex);
+    unlock_mutex();
     DMOD_LOG_INFO("File system '%s' mounted at '%s' successfully\n", fs_name, mount_point);
     return true;
 }
@@ -591,7 +657,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _unmount_fs, (const char* mount_poi
         return false;
     }
 
-    if(Dmod_Mutex_Lock(g_mutex) != 0)
+    if(!lock_mutex())
     {
         DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return false;
@@ -600,11 +666,11 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _unmount_fs, (const char* mount_poi
     if(!remove_mount_point(mount_point))
     {
         DMOD_LOG_ERROR("Cannot unmount file system at mount point '%s'\n", mount_point);
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return false;
     }
 
-    Dmod_Mutex_Unlock(g_mutex);
+    unlock_mutex();
     DMOD_LOG_INFO("File system at mount point '%s' unmounted successfully\n", mount_point);
     return true;
 }
@@ -638,7 +704,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
         return -1;
     }
 
-    if (Dmod_Mutex_Lock(g_mutex) != 0)
+    if (!lock_mutex())
     {
         DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return -1;
@@ -648,7 +714,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     if (abs_path == NULL)
     {
         DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return -1;
     }
 
@@ -657,7 +723,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     {
         DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return -1;
     }
 
@@ -666,7 +732,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     {
         DMOD_LOG_ERROR("File system does not support fopen for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return -1;
     }
 
@@ -677,7 +743,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     if (fs_file == NULL || result != 0)
     {
         DMOD_LOG_ERROR("Failed to open file '%s'\n", path);
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return -1;
     }
 
@@ -685,7 +751,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     if (free_entry == NULL)
     {
         DMOD_LOG_ERROR("No free file entries available\n");
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return -1;
     }
 
@@ -694,7 +760,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fopen, (void** fp, const char* path
     free_entry->pid = pid;
     *fp = free_entry;
 
-    Dmod_Mutex_Unlock(g_mutex);
+    unlock_mutex();
     DMOD_LOG_INFO("File '%s' opened successfully\n", path);
     return 0;
 }
@@ -726,7 +792,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
 
     file_t* file_entry = (file_t*)fp;
 
-    if (Dmod_Mutex_Lock(g_mutex) != 0)
+    if (!lock_mutex())
     {
         DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return -1;
@@ -735,7 +801,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
         DMOD_LOG_ERROR("Invalid file entry\n");
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return -1;
     }
 
@@ -747,7 +813,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
         DMOD_LOG_ERROR("File system does not support fclose\n");
         file_entry->mount_point = NULL;
         file_entry->fs_file = NULL;
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return -1;
     }
 
@@ -756,14 +822,14 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose, (void* fp))
         DMOD_LOG_ERROR("Failed to close file\n");
         file_entry->mount_point = NULL;
         file_entry->fs_file = NULL;
-        Dmod_Mutex_Unlock(g_mutex);
+        unlock_mutex();
         return -1;
     }
 
     file_entry->mount_point = NULL;
     file_entry->fs_file = NULL;
 
-    Dmod_Mutex_Unlock(g_mutex);
+    unlock_mutex();
     DMOD_LOG_INFO("File closed successfully\n");
     return 0;
 }
@@ -787,7 +853,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose_process, (int pid))
         return -1;
     }
 
-    if (Dmod_Mutex_Lock(g_mutex) != 0)
+    if (!lock_mutex())
     {
         DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
         return -1;
@@ -817,7 +883,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fclose_process, (int pid))
         }
     }
 
-    Dmod_Mutex_Unlock(g_mutex);
+    unlock_mutex();
 
     if (success)
     {
@@ -859,11 +925,18 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     file_t* file_entry = (file_t*)fp;
 
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
         DMOD_LOG_ERROR("Invalid file entry\n");
+        unlock_mutex();
         return -1;
     }
 
@@ -873,6 +946,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t
     if (fread_func == NULL)
     {
         DMOD_LOG_ERROR("File system does not support fread\n");
+        unlock_mutex();
         return -1;
     }
 
@@ -883,6 +957,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fread, (void* fp, void* buf, size_t
     {
         *read_bytes = bytes_read;
     }
+    unlock_mutex();
 
     if (result != 0)
     {
@@ -915,33 +990,54 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fwrite, (void* fp, const void* buf,
         DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
     }
+
     if (fp == NULL || buf == NULL || size == 0)
     {
         DMOD_LOG_ERROR("Invalid arguments to _fwrite\n");
         return -1;
     }
+
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     file_t* file_entry = (file_t*)fp;
+
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
         DMOD_LOG_ERROR("Invalid file entry\n");
+        unlock_mutex();
         return -1;
     }
+
     dmod_dmfsi_fwrite_t fwrite_func = (dmod_dmfsi_fwrite_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_fwrite_sig);
+
     if (fwrite_func == NULL)
     {
         DMOD_LOG_ERROR("File system does not support fwrite\n");
+        unlock_mutex();
         return -1;
     }
+
     size_t bytes_written = 0;
     int result = fwrite_func(file_entry->mount_point->mount_context, file_entry->fs_file, buf, size, &bytes_written);
+
     if (written_bytes)
+    {
         *written_bytes = bytes_written;
+    }
+
+    unlock_mutex();
+
     if (result != 0)
     {
         DMOD_LOG_ERROR("Failed to write to file\n");
         return -1;
     }
+
     DMOD_LOG_VERBOSE("Wrote %zu bytes to file\n", bytes_written);
     return 0;
 }
@@ -965,30 +1061,46 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _lseek, (void* fp, long offset, int 
         DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
     }
+    
     if (fp == NULL)
     {
         DMOD_LOG_ERROR("Invalid file pointer\n");
         return -1;
     }
+
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
         DMOD_LOG_ERROR("Invalid file entry\n");
+        unlock_mutex();
         return -1;
     }
+
     dmod_dmfsi_lseek_t lseek_func = (dmod_dmfsi_lseek_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_lseek_sig);
+    
     if (lseek_func == NULL)
     {
         DMOD_LOG_ERROR("File system does not support lseek\n");
+        unlock_mutex();
         return -1;
     }
+
     int result = lseek_func(file_entry->mount_point->mount_context, file_entry->fs_file, offset, whence);
+    unlock_mutex();
+
     if (result < 0)
     {
         DMOD_LOG_ERROR("Failed to seek in file\n");
         return -1;
     }
+
     return result;
 }
 
@@ -1014,10 +1126,18 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, long, _ftell, (void* fp))
         DMOD_LOG_ERROR("Invalid file pointer\n");
         return -1;
     }
+
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
     {
         DMOD_LOG_ERROR("Invalid file entry\n");
+        unlock_mutex();
         return -1;
     }
     dmod_dmfsi_tell_t ftell_func = (dmod_dmfsi_tell_t)Dmod_GetDifFunction(
@@ -1025,9 +1145,12 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, long, _ftell, (void* fp))
     if (ftell_func == NULL)
     {
         DMOD_LOG_ERROR("File system does not support ftell\n");
+        unlock_mutex();
         return -1;
     }
     long result = ftell_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    unlock_mutex();
+    
     if (result < 0)
     {
         DMOD_LOG_ERROR("Failed to get file position\n");
@@ -1044,16 +1167,45 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, long, _ftell, (void* fp))
  */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _feof, (void* fp))
 {
-    if (!is_initialized() || fp == NULL)
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
+    }
+    
+    if (fp == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file pointer\n");
+        return -1;
+    }
+
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file entry\n");
+        unlock_mutex();
         return -1;
+    }
+
     dmod_dmfsi_eof_t feof_func = (dmod_dmfsi_eof_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_eof_sig);
-    if (!feof_func)
+    
+    if (feof_func == NULL)
+    {
+        DMOD_LOG_ERROR("File system does not support feof\n");
+        unlock_mutex();
         return -1;
-    return feof_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    }
+
+    int result = feof_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    unlock_mutex();
+    return result;
 }
 
 /**
@@ -1064,16 +1216,45 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _feof, (void* fp))
  */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fflush, (void* fp))
 {
-    if (!is_initialized() || fp == NULL)
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
+    }
+    
+    if (fp == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file pointer\n");
+        return -1;
+    }
+
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file entry\n");
+        unlock_mutex();
         return -1;
+    }
+
     dmod_dmfsi_fflush_t fflush_func = (dmod_dmfsi_fflush_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_fflush_sig);
-    if (!fflush_func)
+    
+    if (fflush_func == NULL)
+    {
+        DMOD_LOG_ERROR("File system does not support fflush\n");
+        unlock_mutex();
         return -1;
-    return fflush_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    }
+
+    int result = fflush_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    unlock_mutex();
+    return result;
 }
 
 /**
@@ -1084,16 +1265,45 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _fflush, (void* fp))
  */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _error, (void* fp))
 {
-    if (!is_initialized() || fp == NULL)
+    if (!is_initialized())
+    {
+        DMOD_LOG_ERROR("DMVFS is not initialized\n");
         return -1;
+    }
+    
+    if (fp == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file pointer\n");
+        return -1;
+    }
+
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        DMOD_LOG_ERROR("Invalid file entry\n");
+        unlock_mutex();
         return -1;
+    }
+
     dmod_dmfsi_error_t error_func = (dmod_dmfsi_error_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_error_sig);
-    if (!error_func)
+    
+    if (error_func == NULL)
+    {
+        DMOD_LOG_ERROR("File system does not support error\n");
+        unlock_mutex();
         return -1;
-    return error_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    }
+
+    int result = error_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    unlock_mutex();
+    return result;
 }
 
 /**
