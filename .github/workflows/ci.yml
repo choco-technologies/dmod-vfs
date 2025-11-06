@@ -23,7 +23,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake -DCMAKE_BUILD_TYPE=Release -DMVFS_BUILD_TESTS=ON .. 
+          cmake -DCMAKE_BUILD_TYPE=Release -DDMVFS_BUILD_TESTS=ON .. 
 
       - name: Build project
         run: |
@@ -35,14 +35,14 @@ jobs:
           cd build
           mkdir -p _deps/dmfsi-src/build
           cd _deps/dmfsi-src/build
-          cmake .. -DDMOD_MODE=DMOD_MODULE -DMVFS_BUILD_TESTS=ON -DDMOD_DIR=$(pwd)/../../dmod-src 
+          cmake .. -DDMOD_MODE=DMOD_MODULE -DDMOD_DIR=$(pwd)/../../dmod-src 
           cmake --build .
 
       - name: Prepare test filesystem module
         run: |
           mkdir -p tests/testfs/build
           cd tests/testfs/build
-          cmake .. -DDMOD_MODE=DMOD_MODULE -DDMOD_DIR=$(pwd)/../../../build/_deps/dmod-src -DMVFS_BUILD_TESTS=ON 
+          cmake .. -DDMOD_MODE=DMOD_MODULE -DDMOD_DIR=$(pwd)/../../../build/_deps/dmod-src 
           cmake --build .
 
       - name: Run tests
