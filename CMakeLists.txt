@@ -77,6 +77,11 @@ target_link_libraries(dmvfs PUBLIC
     dmfsi
 )
 
+# Define version string for the library
+target_compile_definitions(dmvfs PRIVATE
+    DMVFS_VERSION="${PROJECT_VERSION}"
+)
+
 # ======================================================================
 #               Tests
 # ======================================================================
