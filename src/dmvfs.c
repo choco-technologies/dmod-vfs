@@ -579,7 +579,14 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _deinit, (void))
  */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _get_max_mount_points, (void))
 {
-    return g_max_mount_points;
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+    int result = g_max_mount_points;
+    unlock_mutex();
+    return result;
 }
 
 /**
@@ -589,7 +596,14 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _get_max_mount_points, (void))
  */
 DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _get_max_open_files, (void))
 {
-    return g_max_open_files;
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+    int result = g_max_open_files;
+    unlock_mutex();
+    return result;
 }
 
 /**
@@ -1316,13 +1330,24 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _remove, (const char* path))
 {
     if (!is_initialized() || path == NULL)
         return -1;
+    
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+    
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
+    {
+        unlock_mutex();
         return -1;
+    }
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
     dmod_dmfsi_unlink_t remove_func = (dmod_dmfsi_unlink_t)Dmod_GetDifFunction(
@@ -1331,6 +1356,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _remove, (const char* path))
     if (remove_func)
         result = remove_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point));
     Dmod_Free((void*)abs_path);
+    unlock_mutex();
     return result;
 }
 
@@ -1345,12 +1371,20 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rename, (const char* oldpath, const
 {
     if (!is_initialized() || oldpath == NULL || newpath == NULL)
         return -1;
+    
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+    
     const char* abs_old = to_absolute_path(oldpath);
     const char* abs_new = to_absolute_path(newpath);
     if (!abs_old || !abs_new)
     {
         if (abs_old) Dmod_Free((void*)abs_old);
         if (abs_new) Dmod_Free((void*)abs_new);
+        unlock_mutex();
         return -1;
     }
     mount_point_t* mp_entry = get_mount_point_for_path(abs_old);
@@ -1358,6 +1392,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rename, (const char* oldpath, const
     {
         Dmod_Free((void*)abs_old);
         Dmod_Free((void*)abs_new);
+        unlock_mutex();
         return -1;
     }
     dmod_dmfsi_rename_t rename_func = (dmod_dmfsi_rename_t)Dmod_GetDifFunction(
@@ -1367,6 +1402,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rename, (const char* oldpath, const
         result = rename_func(mp_entry->mount_context, abs_old + strlen(mp_entry->mount_point), abs_new + strlen(mp_entry->mount_point));
     Dmod_Free((void*)abs_old);
     Dmod_Free((void*)abs_new);
+    unlock_mutex();
     return result;
 }
 
@@ -1382,14 +1418,29 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _ioctl, (void* fp, int command, void
 {
     if (!is_initialized() || fp == NULL)
         return -1;
+    
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+    
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        unlock_mutex();
         return -1;
+    }
     dmod_dmfsi_ioctl_t ioctl_func = (dmod_dmfsi_ioctl_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_ioctl_sig);
     if (!ioctl_func)
+    {
+        unlock_mutex();
         return -1;
-    return ioctl_func(file_entry->mount_point->mount_context, file_entry->fs_file, command, arg);
+    }
+    int result = ioctl_func(file_entry->mount_point->mount_context, file_entry->fs_file, command, arg);
+    unlock_mutex();
+    return result;
 }
 
 /**
@@ -1402,14 +1453,29 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _sync, (void* fp))
 {
     if (!is_initialized() || fp == NULL)
         return -1;
+    
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+    
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        unlock_mutex();
         return -1;
+    }
     dmod_dmfsi_sync_t sync_func = (dmod_dmfsi_sync_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_sync_sig);
     if (!sync_func)
+    {
+        unlock_mutex();
         return -1;
-    return sync_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    }
+    int result = sync_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    unlock_mutex();
+    return result;
 }
 
 /**
@@ -1423,13 +1489,24 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _stat, (const char* path, dmfsi_stat
 {
     if (!is_initialized() || path == NULL || stat == NULL)
         return -1;
+    
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+    
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
+    {
+        unlock_mutex();
         return -1;
+    }
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
     dmod_dmfsi_stat_t stat_func = (dmod_dmfsi_stat_t)Dmod_GetDifFunction(
@@ -1438,6 +1515,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _stat, (const char* path, dmfsi_stat
     if (stat_func)
         result = stat_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), stat);
     Dmod_Free((void*)abs_path);
+    unlock_mutex();
     return result;
 }
 
@@ -1451,14 +1529,29 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getc, (void* fp))
 {
     if (!is_initialized() || fp == NULL)
         return -1;
+    
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+    
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        unlock_mutex();
         return -1;
+    }
     dmod_dmfsi_getc_t getc_func = (dmod_dmfsi_getc_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_getc_sig);
     if (!getc_func)
+    {
+        unlock_mutex();
         return -1;
-    return getc_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    }
+    int result = getc_func(file_entry->mount_point->mount_context, file_entry->fs_file);
+    unlock_mutex();
+    return result;
 }
 
 /**
@@ -1472,14 +1565,29 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _putc, (void* fp, int c))
 {
     if (!is_initialized() || fp == NULL)
         return -1;
+    
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+    
     file_t* file_entry = (file_t*)fp;
     if (file_entry->mount_point == NULL || file_entry->fs_file == NULL)
+    {
+        unlock_mutex();
         return -1;
+    }
     dmod_dmfsi_putc_t putc_func = (dmod_dmfsi_putc_t)Dmod_GetDifFunction(
         file_entry->mount_point->fs_context, dmod_dmfsi_putc_sig);
     if (!putc_func)
+    {
+        unlock_mutex();
         return -1;
-    return putc_func(file_entry->mount_point->mount_context, file_entry->fs_file, c);
+    }
+    int result = putc_func(file_entry->mount_point->mount_context, file_entry->fs_file, c);
+    unlock_mutex();
+    return result;
 }
 
 /**
@@ -1500,10 +1608,17 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chmod, (const char* path, int mode)
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
         DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1512,6 +1627,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chmod, (const char* path, int mode)
     {
         DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1522,11 +1638,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chmod, (const char* path, int mode)
     {
         DMOD_LOG_ERROR("File system does not support chmod for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
     int result = chmod_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), mode);
     Dmod_Free((void*)abs_path);
+    unlock_mutex();
 
     if (result != 0)
     {
@@ -1557,10 +1675,17 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _utime, (const char* path, uint32_t 
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
         DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1569,6 +1694,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _utime, (const char* path, uint32_t 
     {
         DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1579,11 +1705,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _utime, (const char* path, uint32_t 
     {
         DMOD_LOG_ERROR("File system does not support utime for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
     int result = utime_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), atime, mtime);
     Dmod_Free((void*)abs_path);
+    unlock_mutex();
 
     if (result != 0)
     {
@@ -1612,10 +1740,17 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _unlink, (const char* path))
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
         DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1624,6 +1759,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _unlink, (const char* path))
     {
         DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1634,11 +1770,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _unlink, (const char* path))
     {
         DMOD_LOG_ERROR("File system does not support unlink for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
     int result = unlink_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point));
     Dmod_Free((void*)abs_path);
+    unlock_mutex();
 
     if (result != 0)
     {
@@ -1668,10 +1806,17 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _mkdir, (const char* path, int mode)
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
         DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1680,6 +1825,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _mkdir, (const char* path, int mode)
     {
         DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1690,11 +1836,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _mkdir, (const char* path, int mode)
     {
         DMOD_LOG_ERROR("File system does not support mkdir for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
     int result = mkdir_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point), mode);
     Dmod_Free((void*)abs_path);
+    unlock_mutex();
 
     if (result != 0)
     {
@@ -1722,10 +1870,17 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rmdir, (const char* path))
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
         DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1734,6 +1889,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rmdir, (const char* path))
     {
         DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1744,11 +1900,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _rmdir, (const char* path))
     {
         DMOD_LOG_ERROR("File system does not support rmdir for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
     int result = rmdir_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point));
     Dmod_Free((void*)abs_path);
+    unlock_mutex();
 
     if (result != 0)
     {
@@ -1777,10 +1935,17 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chdir, (const char* path))
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
         DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1789,6 +1954,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chdir, (const char* path))
     {
         DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1799,6 +1965,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chdir, (const char* path))
     {
         DMOD_LOG_ERROR("Directory '%s' does not exist\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1808,10 +1975,12 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _chdir, (const char* path))
     if (!g_cwd)
     {
         DMOD_LOG_ERROR("Failed to update current working directory\n");
+        unlock_mutex();
         return -1;
     }
 
     DMOD_LOG_INFO("Current working directory changed to '%s'\n", g_cwd);
+    unlock_mutex();
     return 0;
 }
 
@@ -1833,10 +2002,17 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     const char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
         DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1845,6 +2021,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
     {
         DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1855,6 +2032,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
     {
         DMOD_LOG_ERROR("File system does not support opendir for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -1865,12 +2043,14 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
     if (result != 0 || dir_handle == NULL)
     {
         DMOD_LOG_ERROR("Failed to open directory '%s'\n", path);
+        unlock_mutex();
         return -1;
     }
 
     file_t* free_entry = find_free_file_entry();
     if (free_entry == NULL) {
         DMOD_LOG_ERROR("No free file entries available for directory\n");
+        unlock_mutex();
         return -1;
     }
     free_entry->mount_point = mp_entry;
@@ -1879,6 +2059,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
 
     *dp = free_entry;
     DMOD_LOG_INFO("Directory '%s' opened successfully\n", path);
+    unlock_mutex();
     return 0;
 }
 /**
@@ -1899,11 +2080,18 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmfsi_dir_entry
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     file_t* dir_entry = (file_t*)dp;
 
     if (dir_entry->mount_point == NULL || dir_entry->fs_file == NULL)
     {
         DMOD_LOG_ERROR("Invalid directory handle\n");
+        unlock_mutex();
         return -1;
     }
 
@@ -1913,10 +2101,12 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmfsi_dir_entry
     if (!readdir_func)
     {
         DMOD_LOG_ERROR("File system does not support readdir\n");
+        unlock_mutex();
         return -1;
     }
 
     int result = readdir_func(dir_entry->mount_point->mount_context, dir_entry->fs_file, entry);
+    unlock_mutex();
 
     if (result != 0)
     {
@@ -1943,11 +2133,18 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     file_t* dir_entry = (file_t*)dp;
 
     if (dir_entry->mount_point == NULL || dir_entry->fs_file == NULL)
     {
         DMOD_LOG_ERROR("Invalid directory handle\n");
+        unlock_mutex();
         return -1;
     }
 
@@ -1957,6 +2154,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
     if (!closedir_func)
     {
         DMOD_LOG_ERROR("File system does not support closedir\n");
+        unlock_mutex();
         return -1;
     }
 
@@ -1965,6 +2163,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
     if (result != 0)
     {
         DMOD_LOG_ERROR("Failed to close directory\n");
+        unlock_mutex();
         return -1;
     }
 
@@ -1972,6 +2171,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
     dir_entry->fs_file = NULL;
 
     DMOD_LOG_INFO("Directory closed successfully\n");
+    unlock_mutex();
     return 0;
 }
 /**
@@ -1991,10 +2191,17 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _direxists, (const char* path))
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     char* abs_path = to_absolute_path(path);
     if (!abs_path)
     {
         DMOD_LOG_ERROR("Failed to resolve absolute path for '%s'\n", path);
+        unlock_mutex();
         return -1;
     }
 
@@ -2003,6 +2210,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _direxists, (const char* path))
     {
         DMOD_LOG_ERROR("No mount point found for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
@@ -2013,11 +2221,13 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _direxists, (const char* path))
     {
         DMOD_LOG_ERROR("File system does not support direxists for path '%s'\n", abs_path);
         Dmod_Free((void*)abs_path);
+        unlock_mutex();
         return -1;
     }
 
     int result = direxists_func(mp_entry->mount_context, abs_path + strlen(mp_entry->mount_point));
     Dmod_Free((void*)abs_path);
+    unlock_mutex();
 
     return result;
 }
@@ -2039,13 +2249,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getcwd, (char* buffer, size_t size)
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     if (strlen(g_cwd) + 1 > size)
     {
         DMOD_LOG_ERROR("Buffer too small for current working directory\n");
+        unlock_mutex();
         return -1;
     }
 
     strcpy(buffer, g_cwd);
+    unlock_mutex();
     return 0;
 }
 
@@ -2066,13 +2284,21 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _getpwd, (char* buffer, size_t size)
         return -1;
     }
 
+    if(!lock_mutex())
+    {
+        DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+        return -1;
+    }
+
     if (strlen(g_pwd) + 1 > size)
     {
         DMOD_LOG_ERROR("Buffer too small for process working directory\n");
+        unlock_mutex();
         return -1;
     }
 
     strcpy(buffer, g_pwd);
+    unlock_mutex();
     return 0;
 }
 
@@ -2116,12 +2342,19 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _toabs, (const char* path, char* abs
             return -1;
         }
 
+        if(!lock_mutex())
+        {
+            DMOD_LOG_ERROR("Failed to lock DMVFS mutex\n");
+            return -1;
+        }
+
         size_t cwd_len = strlen(g_cwd);
         size_t path_len = strlen(path);
 
         if (cwd_len + 1 + path_len + 1 > size)
         {
             DMOD_LOG_ERROR("Buffer too small for absolute path\n");
+            unlock_mutex();
             return -1;
         }
 
@@ -2129,6 +2362,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _toabs, (const char* path, char* abs
         abs_path[size - 1] = '\0';
         strncat(abs_path, "/", size - strlen(abs_path) - 1);
         strncat(abs_path, path, size - strlen(abs_path) - 1);
+        unlock_mutex();
     }
 
     return 0;
