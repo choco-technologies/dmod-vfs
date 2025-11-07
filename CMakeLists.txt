@@ -83,20 +83,6 @@ target_compile_definitions(dmvfs PRIVATE
 )
 
 # ======================================================================
-#               Configuration Options
-# ======================================================================
-option(DMVFS_DONT_IMPLEMENT_DMOD_API "Don't implement DMOD file interface APIs" OFF)
-
-if(DMVFS_DONT_IMPLEMENT_DMOD_API)
-    target_compile_definitions(dmvfs PRIVATE
-        DMVFS_DONT_IMPLEMENT_DMOD_API
-    )
-    message(STATUS "DMVFS: DMOD file interface APIs disabled")
-else()
-    message(STATUS "DMVFS: DMOD file interface APIs enabled (default)")
-endif()
-
-# ======================================================================
 #               Tests
 # ======================================================================
 option(DMVFS_BUILD_TESTS "Build tests" OFF)
