@@ -117,6 +117,22 @@ After building, you'll find:
 - `build/libdmvfs.a` - The DMVFS static library
 - `build/tests/fs_tester` - Test executable for file system validation
 
+### Configuration Options
+
+DMVFS provides several configuration options:
+
+- **DMVFS_BUILD_TESTS**: Build the test suite (default: OFF)
+  ```bash
+  cmake -DDMVFS_BUILD_TESTS=ON ..
+  ```
+
+- **DMVFS_DONT_IMPLEMENT_DMOD_API**: Disable DMOD file interface implementations (default: not defined)
+  
+  By default, DMVFS implements the DMOD file interface APIs (such as `Dmod_FileOpen`, `Dmod_FileRead`, etc.), allowing DMOD modules and applications to use DMVFS as their file system backend. To disable this and provide your own implementations, define this option:
+  ```bash
+  cmake -DDMVFS_DONT_IMPLEMENT_DMOD_API=ON ..
+  ```
+
 ## Usage
 
 ### Basic Example
