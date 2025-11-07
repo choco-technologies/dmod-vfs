@@ -2679,6 +2679,9 @@ DMOD_INPUT_API_DECLARATION(Dmod, 1.0, void*, _OpenDir, (const char* Path))
 /**
  * @brief Read the next entry from a directory (DMOD API)
  * 
+ * Note: This function uses thread-local storage to maintain thread safety.
+ * The returned pointer is valid until the next call to Dmod_ReadDir in the same thread.
+ * 
  * @param Dir Directory handle
  * @return Name of the next entry, or NULL if no more entries
  */
@@ -2690,7 +2693,8 @@ DMOD_INPUT_API_DECLARATION(Dmod, 1.0, const char*, _ReadDir, (void* Dir))
         return NULL;
     }
 
-    static dmfsi_dir_entry_t entry;
+    // Use thread-local storage to avoid race conditions between threads
+    static _Thread_local dmfsi_dir_entry_t entry;
     int result = dmvfs_readdir(Dir, &entry);
     if (result != 0)
     {
