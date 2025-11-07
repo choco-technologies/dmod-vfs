@@ -2,6 +2,11 @@
 #include "dmvfs.h"
 #include <string.h>
 
+// Compile-time checks to ensure DMOD_SEEK_* constants match DMFSI_SEEK_* constants
+_Static_assert(DMOD_SEEK_SET == DMFSI_SEEK_SET, "DMOD_SEEK_SET must equal DMFSI_SEEK_SET");
+_Static_assert(DMOD_SEEK_CUR == DMFSI_SEEK_CUR, "DMOD_SEEK_CUR must equal DMFSI_SEEK_CUR");
+_Static_assert(DMOD_SEEK_END == DMFSI_SEEK_END, "DMOD_SEEK_END must equal DMFSI_SEEK_END");
+
 typedef struct {
     Dmod_Context_t* fs_context;
     char* mount_point;
@@ -2458,6 +2463,12 @@ DMOD_INPUT_API_DECLARATION(Dmod, 1.0, size_t, _FileRead, (void* Buffer, size_t S
         return 0;
     }
 
+    // Handle edge case of zero size
+    if (Size == 0)
+    {
+        return 0;
+    }
+
     size_t bytes_to_read = Size * Count;
     size_t bytes_read = 0;
 
@@ -2488,6 +2499,12 @@ DMOD_INPUT_API_DECLARATION(Dmod, 1.0, size_t, _FileWrite, (const void* Buffer, s
         return 0;
     }
 
+    // Handle edge case of zero size
+    if (Size == 0)
+    {
+        return 0;
+    }
+
     size_t bytes_to_write = Size * Count;
     size_t bytes_written = 0;
 
@@ -2504,6 +2521,9 @@ DMOD_INPUT_API_DECLARATION(Dmod, 1.0, size_t, _FileWrite, (const void* Buffer, s
 /**
  * @brief Seek to a position in a file (DMOD API)
  * 
+ * The DMOD_SEEK_* constants are verified at compile-time to match DMFSI_SEEK_*
+ * constants, so the Origin parameter can be passed directly to dmvfs_lseek.
+ * 
  * @param File File handle
  * @param Offset Offset to seek to
  * @param Origin Origin for the offset (DMOD_SEEK_SET, DMOD_SEEK_CUR, DMOD_SEEK_END)
@@ -2517,7 +2537,6 @@ DMOD_INPUT_API_DECLARATION(Dmod, 1.0, int, _FileSeek, (void* File, long Offset, 
         return -1;
     }
 
-    // DMOD_SEEK_* constants should match DMFSI_SEEK_* constants
     int result = dmvfs_lseek(File, Offset, Origin);
     if (result != 0)
     {
@@ -2531,8 +2550,12 @@ DMOD_INPUT_API_DECLARATION(Dmod, 1.0, int, _FileSeek, (void* File, long Offset, 
 /**
  * @brief Get current position in a file (DMOD API)
  * 
+ * Note: Due to the API signature returning size_t (unsigned), this function
+ * returns 0 on both error and when the file position is at offset 0.
+ * Callers should check for error conditions using other means if needed.
+ * 
  * @param File File handle
- * @return Current position on success, 0 on failure
+ * @return Current position on success, 0 on failure or at start of file
  */
 DMOD_INPUT_API_DECLARATION(Dmod, 1.0, size_t, _FileTell, (void* File))
 {
@@ -2555,8 +2578,12 @@ DMOD_INPUT_API_DECLARATION(Dmod, 1.0, size_t, _FileTell, (void* File))
 /**
  * @brief Get the size of a file (DMOD API)
  * 
+ * Note: Due to the API signature returning size_t (unsigned), this function
+ * returns 0 on both error and for empty files. Callers should check for
+ * error conditions using other means if needed (e.g., Dmod_FileAvailable).
+ * 
  * @param File File handle
- * @return File size on success, 0 on failure
+ * @return File size on success, 0 on failure or for empty files
  */
 DMOD_INPUT_API_DECLARATION(Dmod, 1.0, size_t, _FileSize, (void* File))
 {
