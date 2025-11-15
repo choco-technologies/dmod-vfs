@@ -12,6 +12,7 @@ typedef struct {
     mount_point_t* mount_point;
     void* fs_file;
     int pid;
+    int virtual_root_index; // Index for iterating mount points in virtual root directory, -1 if not virtual root
 } file_t;
 
 static mount_point_t* g_mount_points = NULL;
@@ -453,6 +454,14 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, bool, _init, (int max_mount_points, int m
     }
 
     memset(g_mount_points, 0, sizeof(mount_point_t) * max_mount_points);
+    memset(g_open_files, 0, sizeof(file_t) * max_open_files);
+    
+    // Initialize virtual_root_index to -1 for all file entries
+    for (int i = 0; i < max_open_files; i++)
+    {
+        g_open_files[i].virtual_root_index = -1;
+    }
+    
     g_max_mount_points = max_mount_points;
     g_max_open_files = max_open_files;
 
@@ -2017,6 +2026,35 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
         return -1;
     }
 
+    // Special case: opening root directory "/" when no filesystem is mounted
+    if (strcmp(abs_path, "/") == 0)
+    {
+        mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
+        if (!mp_entry)
+        {
+            // No mount point found for "/", create a virtual root directory handle
+            file_t* free_entry = find_free_file_entry();
+            if (free_entry == NULL)
+            {
+                DMOD_LOG_ERROR("No free file entries available for virtual root directory\n");
+                Dmod_Free((void*)abs_path);
+                unlock_mutex();
+                return -1;
+            }
+            
+            free_entry->mount_point = NULL;
+            free_entry->fs_file = NULL;
+            free_entry->pid = 0;
+            free_entry->virtual_root_index = 0;  // Start iteration from the first mount point
+            
+            *dp = free_entry;
+            Dmod_Free((void*)abs_path);
+            DMOD_LOG_INFO("Virtual root directory '/' opened successfully\n");
+            unlock_mutex();
+            return 0;
+        }
+    }
+
     mount_point_t* mp_entry = get_mount_point_for_path(abs_path);
     if (!mp_entry)
     {
@@ -2038,7 +2076,12 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
     }
 
     void* dir_handle = NULL;
-    int result = opendir_func(mp_entry->mount_context, &dir_handle, abs_path + strlen(mp_entry->mount_point));
+    const char* fs_path = abs_path + strlen(mp_entry->mount_point);
+    // If the path within the filesystem is empty, use "/" as root
+    if (fs_path[0] == '\0') {
+        fs_path = "/";
+    }
+    int result = opendir_func(mp_entry->mount_context, &dir_handle, fs_path);
     Dmod_Free((void*)abs_path);
 
     if (result != 0 || dir_handle == NULL)
@@ -2057,6 +2100,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _opendir, (void** dp, const char* pa
     free_entry->mount_point = mp_entry;
     free_entry->fs_file = dir_handle;
     free_entry->pid = 0; 
+    free_entry->virtual_root_index = -1;
 
     *dp = free_entry;
     DMOD_LOG_INFO("Directory '%s' opened successfully\n", path);
@@ -2088,6 +2132,50 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _readdir, (void* dp, dmfsi_dir_entry
     }
 
     file_t* dir_entry = (file_t*)dp;
+
+    // Special case: reading virtual root directory
+    if (dir_entry->virtual_root_index >= 0)
+    {
+        // Iterate through mount points and return their names as directory entries
+        while (dir_entry->virtual_root_index < g_max_mount_points)
+        {
+            int idx = dir_entry->virtual_root_index;
+            dir_entry->virtual_root_index++;
+            
+            if (g_mount_points[idx].mount_point != NULL)
+            {
+                // Found a mounted filesystem, return it as a directory entry
+                memset(entry, 0, sizeof(dmfsi_dir_entry_t));
+                
+                // Skip the leading "/" in mount point name
+                const char* mount_name = g_mount_points[idx].mount_point;
+                if (mount_name[0] == '/')
+                {
+                    mount_name++;
+                }
+                
+                // If mount point is just "/", skip it (already listed)
+                if (strlen(mount_name) == 0)
+                {
+                    continue;
+                }
+                
+                strncpy(entry->name, mount_name, sizeof(entry->name) - 1);
+                entry->name[sizeof(entry->name) - 1] = '\0';
+                entry->attr = DMFSI_ATTR_DIRECTORY;
+                entry->size = 0;
+                entry->time = 0;
+                
+                unlock_mutex();
+                return 0;
+            }
+        }
+        
+        // No more mount points to list
+        unlock_mutex();
+        DMOD_LOG_VERBOSE("End of virtual root directory\n");
+        return -1;
+    }
 
     if (dir_entry->mount_point == NULL || dir_entry->fs_file == NULL)
     {
@@ -2142,6 +2230,19 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
 
     file_t* dir_entry = (file_t*)dp;
 
+    // Special case: closing virtual root directory
+    if (dir_entry->virtual_root_index >= 0)
+    {
+        // Just reset the entry
+        dir_entry->mount_point = NULL;
+        dir_entry->fs_file = NULL;
+        dir_entry->virtual_root_index = -1;
+        
+        DMOD_LOG_INFO("Virtual root directory closed successfully\n");
+        unlock_mutex();
+        return 0;
+    }
+
     if (dir_entry->mount_point == NULL || dir_entry->fs_file == NULL)
     {
         DMOD_LOG_ERROR("Invalid directory handle\n");
@@ -2170,6 +2271,7 @@ DMOD_INPUT_API_DECLARATION(dmvfs, 1.0, int, _closedir, (void* dp))
 
     dir_entry->mount_point = NULL;
     dir_entry->fs_file = NULL;
+    dir_entry->virtual_root_index = -1;
 
     DMOD_LOG_INFO("Directory closed successfully\n");
     unlock_mutex();
